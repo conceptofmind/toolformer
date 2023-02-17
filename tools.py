@@ -21,7 +21,7 @@ output - A string, the answer to the input query
 
 wolfarm_alpha_appid - your Wolfram Alpha API key
 '''
-def Calculator(input_query: str):
+def WolframAlphaCalculator(input_query: str):
     wolfram_alpha_appid = 'YOUR_WOLFRAM_ALPHA_APPID'
     wolfram_client = wolframalpha.Client(wolfram_alpha_appid)
     res = wolfram_client.query(input_query)
@@ -197,7 +197,6 @@ def bing_search(input_query: str):
 
 if __name__ == '__main__':
 
-    print(Calculator('What is 2 + 2?')) # 4
     # print(Calculator('400/1400')) # For Optional Basic Calculator
 
     print(WikiSearch('what is a dog?')) # Outputs a list of strings, each string is a Wikipedia document
@@ -207,6 +206,8 @@ if __name__ == '__main__':
     print(Calendar()) # Outputs a string, the current date
 
     # Optional Tools
+
+    print(WolframAlphaCalculator('What is 2 + 2?')) # 4
 
     print(google_search('what is a dog?')) 
     # Outputs a list of dictionaries, each dictionary is a Google Search result
