@@ -3,49 +3,24 @@ import calendar
 import wolframalpha
 import datetime
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from operator import pow, truediv, mul, add, sub  
 
-# Optional Tool imports
+# Optional imports
 from googleapiclient.discovery import build
     
 
 '''
-Calculator
+Calendar
 
-pip install wolframalpha
+Uses Python's datetime and calendar libraries to retrieve the current date.
 
-Uses Wolfram Alpha API to calculate input query.
+input - None
 
-input_query - A string, the input query (e.g. "what is 2 + 2?")
-
-output - A string, the answer to the input query
-
-wolfarm_alpha_appid - your Wolfram Alpha API key
+output - A string, the current date.
 '''
-def WolframAlphaCalculator(input_query: str):
-    wolfram_alpha_appid = 'YOUR_WOLFRAM_ALPHA_APPID'
-    wolfram_client = wolframalpha.Client(wolfram_alpha_appid)
-    res = wolfram_client.query(input_query)
-    assumption = next(res.pods).text
-    answer = next(res.results).text
-    return f'Assumption: {assumption} \nAnswer: {answer}'
-
-# Optional Basic Calculator
-
-# from operator import pow, truediv, mul, add, sub  
-
-# def Calculator(s):
-#     operators = {
-#         '+': add,
-#         '-': sub,
-#         '*': mul,
-#         '/': truediv
-#         }
-#     if s.isdigit():
-#         return float(s)
-#     for c in operators.keys():
-#         left, operator, right = s.partition(c)
-#         if operator in operators:
-#             return operators[operator](Calculator(left), Calculator(right))
+def Calendar():
+    now = datetime.datetime.now()
+    return f'Today is {calendar.day_name[now.weekday()]}, {calendar.month_name[now.month]} {now.day}, {now.year}.'
 
 
 '''
@@ -108,18 +83,55 @@ def MT(input_query: str):
 
 
 '''
-Calendar
+Calculator
 
-Uses Python's datetime and calendar libraries to retrieve the current date.
+Calculates the result of a mathematical expression.
 
-output - A string, the current date.
+input_query - A string, the input query (e.g. "400/1400")
+
+output - A float, the result of the calculation
+
+Adapted from: https://levelup.gitconnected.com/3-ways-to-write-a-calculator-in-python-61642f2e4a9a 
 '''
-def Calendar():
-    now = datetime.datetime.now()
-    return f'Today is {calendar.day_name[now.weekday()]}, {calendar.month_name[now.month]} {now.day}, {now.year}.'
+def Calculator(input_query: str):
+    operators = {
+        '+': add,
+        '-': sub,
+        '*': mul,
+        '/': truediv
+        }
+    if input_query.isdigit():
+        return float(input_query)
+    for c in operators.keys():
+        left, operator, right = input_query.partition(c)
+        if operator in operators:
+            return operators[operator](Calculator(left), Calculator(right))
 
 
-# Other Optional Search Tools
+# Other Optional Tools
+
+
+'''
+Wolfram Alpha Calculator
+
+pip install wolframalpha
+
+Uses Wolfram Alpha API to calculate input query.
+
+input_query - A string, the input query (e.g. "what is 2 + 2?")
+
+output - A string, the answer to the input query
+
+wolfarm_alpha_appid - your Wolfram Alpha API key
+'''
+def WolframAlphaCalculator(input_query: str):
+    wolfram_alpha_appid = 'YOUR_WOLFRAM_ALPHA_APPID'
+    wolfram_client = wolframalpha.Client(wolfram_alpha_appid)
+    res = wolfram_client.query(input_query)
+    assumption = next(res.pods).text
+    answer = next(res.results).text
+    return f'Assumption: {assumption} \nAnswer: {answer}'
+
 
 '''
 Google Search
@@ -196,21 +208,22 @@ def bing_search(input_query: str):
 
 
 if __name__ == '__main__':
+ 
+    print(Calendar()) # Outputs a string, the current date
 
-    # print(Calculator('400/1400')) # For Optional Basic Calculator
+    print(Calculator('400/1400')) # For Optional Basic Calculator
 
-    print(WikiSearch('what is a dog?')) # Outputs a list of strings, each string is a Wikipedia document
+    print(WikiSearch('What is a dog?')) # Outputs a list of strings, each string is a Wikipedia document
 
     print(MT("Un chien c'est quoi?")) # What is a dog?
 
-    print(Calendar()) # Outputs a string, the current date
 
     # Optional Tools
 
     print(WolframAlphaCalculator('What is 2 + 2?')) # 4
 
-    print(google_search('what is a dog?')) 
+    print(google_search('What is a dog?')) 
     # Outputs a list of dictionaries, each dictionary is a Google Search result
 
-    print(bing_search('what is a dog?')) 
+    print(bing_search('What is a dog?')) 
     # Outputs a list of dictionaries, each dictionary is a Bing Search result
