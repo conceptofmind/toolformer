@@ -1,7 +1,7 @@
 calculator_prompt = """
 Your task is to add calls to a Calculator API to a piece of text.
 The calls should help you get information required to complete the text. 
-You can call the API by writing [Calculator(expression)]" where "expression" is the expression to be computed. 
+You can call the API by writing "[Calculator(expression)]" where "expression" is the expression to be computed. 
 Here are some examples of API calls:
 Input: The number in the next term is 18 + 12 x 3 = 54.
 Output: The number in the next term is 18 + 12 x 3 = [Calculator(18 + 12 * 3)] 54.
