@@ -72,7 +72,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                     + outputs[j]["Calendar"]
                     + "\n",
                     return_tensors="pt",
-                )["input_ids"].cuda()
+                )["input_ids"].cudgea()
                 test_inputs = torch.concat(
                     [
                         test_inputs.cuda(),
