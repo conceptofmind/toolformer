@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from transformers import PreTrainedTokenizerBase
+import dateutil.parser as dparser
 
 
 @dataclass
@@ -7,9 +8,12 @@ class AvailableAPIs:
     """Keeps track of available APIs"""
 
     retrieval: bool = True
+    calendar: bool = True
 
     def check_any_available(self):
-        return any([self.retrieval])
+        return any([self.retrieval, self.calendar])
+
+
 
 
 def check_apis_available(
@@ -26,4 +30,10 @@ def check_apis_available(
     available = AvailableAPIs()
     if len(tokenized_data) < 8000:
         available.retrieval = False
+    try:
+        print("---")
+        print(data["url"])
+        print(dparser.parse(data["url"], fuzzy=True))
+    except ValueError:
+        available.calendar = False
     return available

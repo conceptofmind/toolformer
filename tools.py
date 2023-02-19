@@ -23,9 +23,8 @@ input - None
 
 output - A string, the current date.
 '''
-def Calendar():
-    now = datetime.datetime.now()
-    return f'Today is {calendar.day_name[now.weekday()]}, {calendar.month_name[now.month]} {now.day}, {now.year}.'
+def Calendar(date=datetime.datetime.now()):
+    return f'Today is {calendar.day_name[date.weekday()]}, {calendar.month_name[date.month]} {date.day}, {date.year}.'
 
 
 '''
