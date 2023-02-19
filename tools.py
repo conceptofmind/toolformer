@@ -1,8 +1,13 @@
+import copy
+
 import requests
 import calendar
+
+import torch
 import wolframalpha
 import datetime
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoModel
+from typing import List
 from operator import pow, truediv, mul, add, sub  
 
 # Optional imports
@@ -22,6 +27,54 @@ def Calendar():
     now = datetime.datetime.now()
     return f'Today is {calendar.day_name[now.weekday()]}, {calendar.month_name[now.month]} {now.day}, {now.year}.'
 
+
+'''
+retrieval
+
+Uses Carptriever to retrieve sentences before the current context.
+
+input_sentences - List[String], sentences to retrieve from
+input_text - String, the input text (e.g. The dog's name is)
+k - The number of sentences to retrieve
+
+output - A list of strings, each string is the retrieved sentence, and the sentence after.
+'''
+class Retriever:
+    def __init__(self):
+        self.model = AutoModel.from_pretrained("CarperAI/carptriever-1", add_pooling_layer=False).cuda()
+        self.tokenizer = AutoTokenizer.from_pretrained("CarperAI/carptriever-1")
+
+    def retrieval(self, input_sentences: List[str], input_text: str, k: int) -> List[str]:
+        if k > len(input_sentences):
+            # I'd error but LMs do stupid stuff sometimes
+            return input_sentences
+        input_sentences = copy.deepcopy(input_sentences)
+        input_sentences.append(input_text)
+        output_list = []
+        for sentence in input_sentences:
+            inputs = self.tokenizer(sentence, padding=True, truncation=True, return_tensors='pt')
+            # print(inputs)
+            inputs['input_ids'] = inputs['input_ids'].cuda()
+            inputs['token_type_ids'] = inputs['token_type_ids'].cuda()
+            inputs['attention_mask'] = inputs['attention_mask'].cuda()
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                embeddings = mean_pooling(outputs[0], inputs['attention_mask'])
+            output_list.append(embeddings)
+        query_embedding, sentence_embeddings = output_list[-1], torch.concat(output_list[:-1], 0)
+        # print(len(sentence_embeddings), sentence_embeddings[0].shape)
+        scores = (query_embedding @ sentence_embeddings.transpose(0, 1)).cpu().tolist()
+        # print(scores)
+        sentence_score_pairs = sorted(zip(input_sentences[:-1], scores[0]), reverse=True, key=lambda x: x[1])
+        continued_sentence_score_pairs = sorted(zip(input_sentences[1:], scores[0]), reverse=True, key=lambda x: x[1])
+        # print(sentence_score_pairs)
+        return [sentence_pair[0] + ' ' + continue_pair[0] for sentence_pair, continue_pair in zip(sentence_score_pairs[:k], continued_sentence_score_pairs[:k])]
+
+
+def mean_pooling(token_embeddings: torch.Tensor, mask: torch.Tensor):
+    token_embeddings = token_embeddings.masked_fill(~mask[..., None].bool(), 0.)
+    sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)[..., None]
+    return sentence_embeddings
 
 '''
 Wikipedia Search
