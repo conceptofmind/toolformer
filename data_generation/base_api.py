@@ -196,7 +196,7 @@ class APICallPostprocessing:
                 indices, values, input_tokens, labels, input_start, model, tokenizer, generator, criterion
             )
             for i in range(len(outputs)):
-                generated_texts, max_token_len = self.add_api_calls(
+                generated_texts, max_token_len, max_token_len_base = self.add_api_calls(
                       i,
                       outputs[i],
                       texts_to_test,
@@ -224,6 +224,21 @@ class APICallPostprocessing:
                             ),
                             dim=1,
                         )
+                    generated_texts[j].append(
+                        max_token_len_base - generated_texts[j][1].shape[1]
+                    )
+                    if generated_texts[j][-1] != 0:
+                        generated_texts[j][1] = torch.cat(
+                            (
+                                generated_texts[j][1],
+                                torch.zeros(
+                                    (1, generated_texts[j][-1]),
+                                    dtype=generated_texts[j][1].dtype,
+                                    device=generated_texts[j][1].device,
+                                ),
+                            ),
+                            dim=1,
+                        )
 
                 test_outputs = model(
                     torch.cat(
@@ -231,32 +246,52 @@ class APICallPostprocessing:
                         dim=0,
                     )
                 ).logits
+                base_outputs = model(
+                    torch.cat(
+                        list(generated_text[1] for generated_text in generated_texts),
+                        dim=0,
+                    )
+                ).logits
                 best_loss = -99.0
                 best_output = outputs[i][0]
                 for j in range(len(generated_texts)):
-                    num_to_keep = generated_texts[j][1]
-                    if generated_texts[j][-1] != 0:
-                        test = test_outputs[j][: -generated_texts[j][-1]]
+                    num_to_keep = generated_texts[j][2]
+                    if generated_texts[j][-2] != 0:
+                        test = test_outputs[j][: -generated_texts[j][-2]]
                         test_loss = criterion(
-                            test[-num_to_keep:-(num_to_keep-M)].view(-1, generated_texts[j][-2]['base_outputs'].size(-1)),
+                            test[-num_to_keep:-(num_to_keep-M)].view(-1, generated_texts[j][-3]['base_outputs'].size(-1)),
                             labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
                         )
                     else:
                         test_loss = criterion(
                             test_outputs[j][-num_to_keep:-(num_to_keep-M)].view(
-                                -1, generated_texts[j][-2]['base_outputs'].size(-1)
+                                -1, generated_texts[j][-3]['base_outputs'].size(-1)
                             ),
                             labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
                         )
-                    generated_texts[j][-2]["generated_text"] = generated_texts[j][-2][
+                    if generated_texts[j][-1] != 0:
+                        base = base_outputs[j][: -generated_texts[j][-1]]
+                        base_loss = criterion(
+                            base[-num_to_keep:-(num_to_keep-M)].view(-1, generated_texts[j][-3]['base_outputs'].size(-1)),
+                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                        )
+                    else:
+                        base_loss = criterion(
+                            base_outputs[j][-num_to_keep:-(num_to_keep-M)].view(
+                                -1, generated_texts[j][-3]['base_outputs'].size(-1)
+                            ),
+                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                        )
+                    generated_texts[j][-3]["generated_text"] = generated_texts[j][-3][
                         "generated_text"
                     ].replace(start_str, "")
-                    if generated_texts[j][-2]['base_loss'] - test_loss > best_loss:
-                        best_output = generated_texts[j][-2]
-                        best_loss = generated_texts[j][-2]['base_loss'] - test_loss
+                    if min(base_loss.item(), generated_texts[j][-3]['base_loss']) - test_loss > best_loss:
+                        best_output = generated_texts[j][-3]
+                        best_loss = generated_texts[j][-3]['base_loss'] - test_loss
                 if len(generated_texts) > 0:
                     outputs[i] = best_output
                     outputs[i]["Score"] = float(best_loss.item())
+                    outputs[i]["base_api_loss"] = float(base_loss.item())
                     del outputs[i]['base_outputs']
                 else:
                     outputs[i] = None

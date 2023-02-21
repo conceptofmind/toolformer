@@ -44,6 +44,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
         retrieval_strings = args[0]
         generated_texts = list()
         max_token_len = N
+        max_token_len_base = N
         for j in range(len(outputs)):
             outputs[j]["Retrieval"] = outputs[j][
                 "generated_text"
@@ -62,6 +63,11 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 outputs[j]["Retrieval_text"] = (
                         "[Retrieval(" + outputs[j]["Retrieval"] + ")"
                 )
+                base_inputs = tokenizer(
+                    outputs[j]["Retrieval_text"] + ']'
+                    + "\n",
+                    return_tensors="pt",
+                )["input_ids"].cuda()
                 outputs[j]["Retrieval"] = self.retriever.retrieval(
                     retrieval_strings, outputs[j]["Retrieval"], 3
                 )
@@ -72,8 +78,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
                         + "]"
                 )
                 test_inputs = tokenizer(
-                    "Retrieved: "
-                    + ", ".join(outputs[j]["Retrieval"])
+                    outputs[j]["Retrieval_text"]
                     + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
@@ -84,11 +89,19 @@ class RetrievalPostprocessing(APICallPostprocessing):
                     ],
                     dim=1,
                 )
-                max_token_len = max(max_token_len, test_inputs.shape[1])
-                generated_texts.append(
-                    [test_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                base_inputs = torch.concat(
+                    [
+                        base_inputs.cuda(),
+                        input_tokens[:, input_start:].cuda(),
+                    ],
+                    dim=1,
                 )
-        return generated_texts, max_token_len
+                max_token_len = max(max_token_len, test_inputs.shape[1])
+                max_token_len_base = max(max_token_len_base, test_inputs.shape[1])
+                generated_texts.append(
+                    [test_inputs, base_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                )
+        return generated_texts, max_token_len, max_token_len_base
 
     def parse_article(self,
                       data: dict,
@@ -133,4 +146,4 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 if output is None:
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
-            outputs.append()
+                outputs.append(output)
