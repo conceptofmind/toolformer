@@ -42,6 +42,7 @@ class CalendarPostprocessing(APICallPostprocessing):
         calendar_string = args[0]
         generated_texts = list()
         max_token_len = N
+        max_token_len_base = N
         for j in range(len(outputs)):
             outputs[j]["Calendar"] = outputs[j][
                 "generated_text"
@@ -60,6 +61,11 @@ class CalendarPostprocessing(APICallPostprocessing):
                 outputs[j]["Calendar_text"] = (
                         "[Calendar()"
                 )
+                base_inputs = tokenizer(
+                    outputs[j]["Calendar_text"] + ']'
+                    + "\n",
+                    return_tensors="pt",
+                )["input_ids"].cuda()
                 outputs[j]["Calendar"] = self.calendar(calendar_string)
                 outputs[j]["Calendar_text"] = (
                         outputs[j]["Calendar_text"]
@@ -68,11 +74,10 @@ class CalendarPostprocessing(APICallPostprocessing):
                         + "]"
                 )
                 test_inputs = tokenizer(
-                    "Calendar: "
-                    + outputs[j]["Calendar"]
+                    outputs[j]["Calendar_text"]
                     + "\n",
                     return_tensors="pt",
-                )["input_ids"].cudgea()
+                )["input_ids"].cuda()
                 test_inputs = torch.concat(
                     [
                         test_inputs.cuda(),
@@ -80,11 +85,19 @@ class CalendarPostprocessing(APICallPostprocessing):
                     ],
                     dim=1,
                 )
-                max_token_len = max(max_token_len, test_inputs.shape[1])
-                generated_texts.append(
-                    [test_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                base_inputs = torch.concat(
+                    [
+                        base_inputs.cuda(),
+                        input_tokens[:, input_start:].cuda(),
+                    ],
+                    dim=1,
                 )
-        return generated_texts, max_token_len
+                max_token_len = max(max_token_len, test_inputs.shape[1])
+                max_token_len_base = max(max_token_len_base, test_inputs.shape[1])
+                generated_texts.append(
+                    [test_inputs, base_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                )
+        return generated_texts, max_token_len, max_token_len_base
 
     def parse_article(self,
                       data: dict,

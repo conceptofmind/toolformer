@@ -34,6 +34,6 @@ def check_apis_available(
         print("---")
         print(data["url"])
         print(dparser.parse(data["url"], fuzzy=True))
-    except ValueError:
+    except (ValueError, OverflowError):
         available.calendar = False
     return available
