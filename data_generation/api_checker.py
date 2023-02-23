@@ -4,6 +4,7 @@ import dateutil.parser as dparser
 import random
 import re
 
+
 @dataclass
 class AvailableAPIs:
     """Keeps track of available APIs"""
@@ -14,8 +15,6 @@ class AvailableAPIs:
 
     def check_any_available(self):
         return any([self.retrieval, self.calendar, self.calculator])
-
-
 
 
 def check_apis_available(
@@ -43,21 +42,22 @@ def check_apis_available(
         available.calendar = False
     available.calculator = False
     tried_rand = False
-    for i in range(len(tokenized_data)//100):
-        text = tokenizer.decode(tokenized_data[i*100: (i+1)*100])
+    for i in range(len(tokenized_data) // 100):
+        text = tokenizer.decode(tokenized_data[i * 100 : (i + 1) * 100])
 
         operators = bool(re.search(calc_pattern, text))
-        equals = any(["=" in text, "equal to" in text, "total of" in text, "average of" in text])
-        if not(operators and equals) and not tried_rand:
+        equals = any(
+            ["=" in text, "equal to" in text, "total of" in text, "average of" in text]
+        )
+        if not (operators and equals) and not tried_rand:
             tried_rand = True
-            text = text.replace('\n', ' ')
-            text = text.split(' ')
-            text = [item for item in text if item.replace('.','',1).isnumeric()]
+            text = text.replace("\n", " ")
+            text = text.split(" ")
+            text = [item for item in text if item.replace(".", "", 1).isnumeric()]
             if len(text) >= 3:
                 if random.randint(0, 99) == 0:
                     available.calculator = True
         else:
             available.calculator = True
-
 
     return available

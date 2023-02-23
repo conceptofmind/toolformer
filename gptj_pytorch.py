@@ -4,6 +4,7 @@ from einops import rearrange
 
 # helpers
 
+
 def exists(val):
     return val is not None
 
@@ -12,15 +13,15 @@ def exists(val):
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim, eps = 1e-8):
+    def __init__(self, dim, eps=1e-8):
         super().__init__()
-        self.scale = dim ** -0.5
+        self.scale = dim**-0.5
         self.eps = eps
         self.g = nn.Parameter(torch.ones(dim))
 
     def forward(self, x):
-        norm = torch.norm(x, dim = -1, keepdim = True) * self.scale
-        return x / norm.clamp(min = self.eps) * self.g
+        norm = torch.norm(x, dim=-1, keepdim=True) * self.scale
+        return x / norm.clamp(min=self.eps) * self.g
 
 
 # rotary positional embedding
@@ -48,7 +49,7 @@ def rotate_half(x):
 def apply_rotary_pos_emb(pos, t):
     return (t * pos.cos()) + (rotate_half(t) * pos.sin())
 
- 
+
 # all we need
 
 
@@ -68,10 +69,7 @@ class ParallelTransformerBlock(nn.Module):
         self.fused_attn_ff_proj = nn.Linear(dim, sum(self.fused_dims), bias=False)
         self.attn_out = nn.Linear(attn_inner_dim, dim, bias=False)
 
-        self.ff_out = nn.Sequential(
-            nn.GELU(),
-            nn.Linear(ff_inner_dim, dim, bias=False)
-        )
+        self.ff_out = nn.Sequential(nn.GELU(), nn.Linear(ff_inner_dim, dim, bias=False))
 
         # for caching causal mask and rotary embeddings
 
@@ -157,11 +155,11 @@ class ParallelTransformerBlock(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(
-        self, 
-        dim, 
-        depth, 
-        heads, 
-        dim_head, 
+        self,
+        dim,
+        depth,
+        heads,
+        dim_head,
         ff_mult=4,
     ):
         super().__init__()
@@ -169,7 +167,7 @@ class Transformer(nn.Module):
 
         for _ in range(depth):
             self.layers.append(
-                ParallelTransformerBlock(dim, dim_head, heads, ff_mult), 
+                ParallelTransformerBlock(dim, dim_head, heads, ff_mult),
             )
 
     def forward(self, x):
@@ -183,12 +181,12 @@ class Transformer(nn.Module):
 
 class Toolformer(nn.Module):
     def __init__(
-        self, 
-        dim, 
-        num_tokens, 
-        depth, 
-        dim_head=64, 
-        heads=8, 
+        self,
+        dim,
+        num_tokens,
+        depth,
+        dim_head=64,
+        heads=8,
         ff_mult=4,
     ):
         super().__init__()
@@ -203,14 +201,15 @@ class Toolformer(nn.Module):
         x = self.to_logits(x)
         return x
 
+
 if __name__ == "__main__":
     toolformer = Toolformer(
-        num_tokens = 20000,
-        dim = 512,
-        depth = 6,
-        dim_head = 64,
-        heads = 8,
-        ff_mult = 4,
+        num_tokens=20000,
+        dim=512,
+        depth=6,
+        dim_head=64,
+        heads=8,
+        ff_mult=4,
     )
     tokens = torch.randint(0, 20000, (1, 512))
     logits = toolformer(tokens)

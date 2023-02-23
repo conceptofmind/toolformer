@@ -1,7 +1,12 @@
 import json
 from typing import List
 import torch
-from transformers import PreTrainedTokenizerBase, pipeline, PreTrainedModel, TextGenerationPipeline
+from transformers import (
+    PreTrainedTokenizerBase,
+    pipeline,
+    PreTrainedModel,
+    TextGenerationPipeline,
+)
 from torch import nn
 
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
@@ -29,12 +34,14 @@ class APICallPostprocessing:
         self.api_text = ""  # API text, might be better to pass it in
         self.k_values = 5  # Default topk generation, might be better to pass it in
 
-    def filter_continuations(self,
-                             input_tokens: torch.Tensor,
-                             input_logits: torch.Tensor,
-                             labels: torch.Tensor,
-                             input_start: int,
-                             tokenizer: PreTrainedTokenizerBase) -> (torch.Tensor, torch.Tensor):
+    def filter_continuations(
+        self,
+        input_tokens: torch.Tensor,
+        input_logits: torch.Tensor,
+        labels: torch.Tensor,
+        input_start: int,
+        tokenizer: PreTrainedTokenizerBase,
+    ) -> (torch.Tensor, torch.Tensor):
         """
         Grab continuations that are valid
 
@@ -62,18 +69,18 @@ class APICallPostprocessing:
         max_start_tokens = max_start_tokens * remove_tokens
         return torch.topk(max_start_tokens[:, : -(M + 1)], k=self.k_values, dim=1)
 
-
-    def create_candidates(self,
-                          indices: torch.Tensor,
-                          values: torch.Tensor,
-                          input_tokens: torch.Tensor,
-                          labels: torch.Tensor,
-                          input_start: int,
-                          model: PreTrainedModel,
-                          tokenizer: PreTrainedTokenizerBase,
-                          generator: TextGenerationPipeline,
-                          criterion: nn.CrossEntropyLoss
-                          ):
+    def create_candidates(
+        self,
+        indices: torch.Tensor,
+        values: torch.Tensor,
+        input_tokens: torch.Tensor,
+        labels: torch.Tensor,
+        input_start: int,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizerBase,
+        generator: TextGenerationPipeline,
+        criterion: nn.CrossEntropyLoss,
+    ):
         """
         Generates continuations of valid API calls
 
@@ -99,14 +106,14 @@ class APICallPostprocessing:
                     continue
                 # Get base output
                 base_outputs = model(input_tokens[:, input_start:].cuda()).logits[
-                               :, index:index+M
-                               ]
+                    :, index : index + M
+                ]
                 # Find starting location...
                 num_keep = int(input_tokens[:, input_start:].shape[1] - index)
                 # Calculate loss without API
                 base_loss = criterion(
                     base_outputs.view(-1, base_outputs.size(-1)),
-                    labels[:, index:index+M].cuda().view(-1),
+                    labels[:, index : index + M].cuda().view(-1),
                 )
                 # For padding later
                 max_index = max(max_index, index)
@@ -130,18 +137,19 @@ class APICallPostprocessing:
                 num_to_keeps.append(num_keep)
         return outputs, num_to_keeps, texts_to_test, max_index
 
-    def add_api_calls(self,
-                      candidate: int,
-                      outputs: dict,
-                      texts_to_test: List[str],
-                      tokenizer: PreTrainedTokenizerBase,
-                      input_tokens: torch.Tensor,
-                      input_start: int,
-                      nums_to_keep: List[int],
-                      base_loss: float,
-                      *args,
-                      **kwargs
-                      ):
+    def add_api_calls(
+        self,
+        candidate: int,
+        outputs: dict,
+        texts_to_test: List[str],
+        tokenizer: PreTrainedTokenizerBase,
+        input_tokens: torch.Tensor,
+        input_start: int,
+        nums_to_keep: List[int],
+        base_loss: float,
+        *args,
+        **kwargs,
+    ):
         """
         Add API calls here.
 
@@ -166,7 +174,8 @@ class APICallPostprocessing:
         labels: torch.Tensor,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizerBase,
-        *args, **kwargs,
+        *args,
+        **kwargs,
     ):
         """
         Generate continuations
@@ -184,7 +193,9 @@ class APICallPostprocessing:
         input_start = input_tokens.shape[1] - input_logits.shape[1]
         start_str = tokenizer.decode(input_tokens[:, :input_start][0])
         # Find top tokens...
-        values, indices = self.filter_continuations(input_tokens, input_logits, labels, input_start, tokenizer)
+        values, indices = self.filter_continuations(
+            input_tokens, input_logits, labels, input_start, tokenizer
+        )
         # setup generation calls...
         generator = pipeline(
             "text-generation", model=model, tokenizer=tokenizer, device=0
@@ -192,20 +203,29 @@ class APICallPostprocessing:
         criterion = nn.CrossEntropyLoss()
         with torch.no_grad():
             outputs, num_to_keeps, texts_to_test, max_index = self.create_candidates(
-                indices, values, input_tokens, labels, input_start, model, tokenizer, generator, criterion
+                indices,
+                values,
+                input_tokens,
+                labels,
+                input_start,
+                model,
+                tokenizer,
+                generator,
+                criterion,
             )
             for i in range(len(outputs)):
                 generated_texts, max_token_len, max_token_len_base = self.add_api_calls(
-                      i,
-                      outputs[i],
-                      texts_to_test,
-                      tokenizer,
-                      input_tokens,
-                      input_start,
-                      num_to_keeps,
-                      outputs[i][0]['base_loss'],
-                      *args,
-                      **kwargs)
+                    i,
+                    outputs[i],
+                    texts_to_test,
+                    tokenizer,
+                    input_tokens,
+                    input_start,
+                    num_to_keeps,
+                    outputs[i][0]["base_loss"],
+                    *args,
+                    **kwargs,
+                )
                 if len(generated_texts) == 0:
                     outputs[i] = None
                     continue
@@ -261,50 +281,64 @@ class APICallPostprocessing:
                     if generated_texts[j][-2] != 0:
                         test = test_outputs[j][: -generated_texts[j][-2]]
                         test_loss = criterion(
-                            test[-num_to_keep:-(num_to_keep-M)].view(-1, generated_texts[j][-3]['base_outputs'].size(-1)),
-                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                            test[-num_to_keep : -(num_to_keep - M)].view(
+                                -1, generated_texts[j][-3]["base_outputs"].size(-1)
+                            ),
+                            labels[:, -num_to_keep : -(num_to_keep - M)]
+                            .cuda()
+                            .view(-1),
                         )
                     else:
                         test_loss = criterion(
-                            test_outputs[j][-num_to_keep:-(num_to_keep-M)].view(
-                                -1, generated_texts[j][-3]['base_outputs'].size(-1)
+                            test_outputs[j][-num_to_keep : -(num_to_keep - M)].view(
+                                -1, generated_texts[j][-3]["base_outputs"].size(-1)
                             ),
-                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                            labels[:, -num_to_keep : -(num_to_keep - M)]
+                            .cuda()
+                            .view(-1),
                         )
                     if generated_texts[j][-1] != 0:
                         base = base_outputs[j][: -generated_texts[j][-1]]
                         base_loss = criterion(
-                            base[-num_to_keep:-(num_to_keep-M)].view(-1, generated_texts[j][-3]['base_outputs'].size(-1)),
-                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                            base[-num_to_keep : -(num_to_keep - M)].view(
+                                -1, generated_texts[j][-3]["base_outputs"].size(-1)
+                            ),
+                            labels[:, -num_to_keep : -(num_to_keep - M)]
+                            .cuda()
+                            .view(-1),
                         )
                     else:
                         base_loss = criterion(
-                            base_outputs[j][-num_to_keep:-(num_to_keep-M)].view(
-                                -1, generated_texts[j][-3]['base_outputs'].size(-1)
+                            base_outputs[j][-num_to_keep : -(num_to_keep - M)].view(
+                                -1, generated_texts[j][-3]["base_outputs"].size(-1)
                             ),
-                            labels[:, -num_to_keep:-(num_to_keep-M)].cuda().view(-1),
+                            labels[:, -num_to_keep : -(num_to_keep - M)]
+                            .cuda()
+                            .view(-1),
                         )
                     generated_texts[j][-3]["generated_text"] = generated_texts[j][-3][
                         "generated_text"
                     ].replace(start_str, "")
-                    if min(base_loss.item(), generated_texts[j][-3]['base_loss']) - test_loss > best_loss:
+                    if (
+                        min(base_loss.item(), generated_texts[j][-3]["base_loss"])
+                        - test_loss
+                        > best_loss
+                    ):
                         best_output = generated_texts[j][-3]
-                        best_loss = generated_texts[j][-3]['base_loss'] - test_loss
+                        best_loss = generated_texts[j][-3]["base_loss"] - test_loss
                 if len(generated_texts) > 0:
                     outputs[i] = best_output
                     outputs[i]["Score"] = float(best_loss.item())
                     outputs[i]["base_api_loss"] = float(base_loss.item())
-                    del outputs[i]['base_outputs']
+                    del outputs[i]["base_outputs"]
                 else:
                     outputs[i] = None
         # print(json.dumps(outputs, indent=2))
         return outputs
 
-    def parse_article(self,
-                      data: dict,
-                      model: PreTrainedModel,
-                      tokenizer: PreTrainedTokenizerBase
-                      ):
+    def parse_article(
+        self, data: dict, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase
+    ):
         """
         Takes in data dict and parses it into API continuations
         :param data: data, assuming it's from load_dataset and has a text field

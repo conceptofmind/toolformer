@@ -40,4 +40,3 @@ if __name__ == "__main__":
         if test:
             api_handler.parse_article(data, model, gpt_tokenizer)
             counter += 1
-
