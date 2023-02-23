@@ -29,57 +29,52 @@ class RetrievalPostprocessing(APICallPostprocessing):
         self.api_text = "Retrieval("
         super().__init__(start_tokens, end_tokens, minimum_percentage)
 
-    def add_api_calls(self,
-                      candidate: int,
-                      outputs: dict,
-                      texts_to_test: List[str],
-                      tokenizer: PreTrainedTokenizerBase,
-                      input_tokens: torch.Tensor,
-                      input_start: int,
-                      nums_to_keep: List[int],
-                      base_loss: float,
-                      *args,
-                      **kwargs
-                      ):
+    def add_api_calls(
+        self,
+        candidate: int,
+        outputs: dict,
+        texts_to_test: List[str],
+        tokenizer: PreTrainedTokenizerBase,
+        input_tokens: torch.Tensor,
+        input_start: int,
+        nums_to_keep: List[int],
+        base_loss: float,
+        *args,
+        **kwargs
+    ):
         retrieval_strings = args[0]
         generated_texts = list()
         max_token_len = N
         max_token_len_base = N
         for j in range(len(outputs)):
-            outputs[j]["Retrieval"] = outputs[j][
-                "generated_text"
-            ].replace(texts_to_test[candidate], "")
-            outputs[j]["Generated"] = outputs[j]["generated_text"].split(
-                "Output:"
-            )[-1]
+            outputs[j]["Retrieval"] = outputs[j]["generated_text"].replace(
+                texts_to_test[candidate], ""
+            )
+            outputs[j]["Generated"] = outputs[j]["generated_text"].split("Output:")[-1]
             if "]" in outputs[j]["Retrieval"]:
-                outputs[j]["Retrieval"] = outputs[j]["Retrieval"].replace('Retrieval(', "").split(
-                    "]"
-                )[0]
+                outputs[j]["Retrieval"] = (
+                    outputs[j]["Retrieval"].replace("Retrieval(", "").split("]")[0]
+                )
                 if ")" in outputs[j]["Retrieval"]:
-                    outputs[j]["Retrieval"] = outputs[j][
-                        "Retrieval"
-                    ].split(")")[0]
+                    outputs[j]["Retrieval"] = outputs[j]["Retrieval"].split(")")[0]
                 outputs[j]["Retrieval_text"] = (
-                        "[Retrieval(" + outputs[j]["Retrieval"] + ")"
+                    "[Retrieval(" + outputs[j]["Retrieval"] + ")"
                 )
                 base_inputs = tokenizer(
-                    outputs[j]["Retrieval_text"] + ']'
-                    + "\n",
+                    outputs[j]["Retrieval_text"] + "]" + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 outputs[j]["Retrieval"] = self.retriever.retrieval(
                     retrieval_strings, outputs[j]["Retrieval"], 3
                 )
                 outputs[j]["Retrieval_text"] = (
-                        outputs[j]["Retrieval_text"]
-                        + "->"
-                        + ", ".join(outputs[j]["Retrieval"])
-                        + "]"
+                    outputs[j]["Retrieval_text"]
+                    + "->"
+                    + ", ".join(outputs[j]["Retrieval"])
+                    + "]"
                 )
                 test_inputs = tokenizer(
-                    outputs[j]["Retrieval_text"]
-                    + "\n",
+                    outputs[j]["Retrieval_text"] + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 test_inputs = torch.concat(
@@ -99,32 +94,32 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 max_token_len = max(max_token_len, test_inputs.shape[1])
                 max_token_len_base = max(max_token_len_base, test_inputs.shape[1])
                 generated_texts.append(
-                    [test_inputs, base_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                    [
+                        test_inputs,
+                        base_inputs,
+                        nums_to_keep[candidate],
+                        base_loss,
+                        outputs[j],
+                    ]
                 )
         return generated_texts, max_token_len, max_token_len_base
 
-    def parse_article(self,
-                      data: dict,
-                      model: PreTrainedModel,
-                      tokenizer: PreTrainedTokenizerBase
-                      ):
+    def parse_article(
+        self, data: dict, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase
+    ):
         outputs = list()
         # TODO: Make this some minimum token count instead of just the last 5
         for i in range(5):
             tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-            input_tokens = tokens[:, (-N * (i + 1) - 1): (-N * (i) - 1)]
+            input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
             labels = tokens[
-                     :,
-                     int(tokens.shape[1] + (-N * (i + 1))): int(
-                         tokens.shape[1] + (-N * i)
-                     ),
-                     ]
+                :,
+                int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
+            ]
             ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
             print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
-            ret_strings = tokenize.sent_tokenize(
-                tokenizer.decode(ret_tokens[0])
-            )
+            ret_strings = tokenize.sent_tokenize(tokenizer.decode(ret_tokens[0]))
             # print(ret_strings)
             model_input = tokenizer(
                 retrieval_prompt.replace("<REPLACEGPT>", string) + string,

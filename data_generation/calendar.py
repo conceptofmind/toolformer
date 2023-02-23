@@ -27,55 +27,45 @@ class CalendarPostprocessing(APICallPostprocessing):
         self.api_text = "Calendar("
         super().__init__(start_tokens, end_tokens, minimum_percentage)
 
-    def add_api_calls(self,
-                      candidate: int,
-                      outputs: dict,
-                      texts_to_test: List[str],
-                      tokenizer: PreTrainedTokenizerBase,
-                      input_tokens: torch.Tensor,
-                      input_start: int,
-                      nums_to_keep: List[int],
-                      base_loss: float,
-                      *args,
-                      **kwargs
-                      ):
+    def add_api_calls(
+        self,
+        candidate: int,
+        outputs: dict,
+        texts_to_test: List[str],
+        tokenizer: PreTrainedTokenizerBase,
+        input_tokens: torch.Tensor,
+        input_start: int,
+        nums_to_keep: List[int],
+        base_loss: float,
+        *args,
+        **kwargs
+    ):
         calendar_string = args[0]
         generated_texts = list()
         max_token_len = N
         max_token_len_base = N
         for j in range(len(outputs)):
-            outputs[j]["Calendar"] = outputs[j][
-                "generated_text"
-            ].replace(texts_to_test[candidate], "")
-            outputs[j]["Generated"] = outputs[j]["generated_text"].split(
-                "Output:"
-            )[-1]
+            outputs[j]["Calendar"] = outputs[j]["generated_text"].replace(
+                texts_to_test[candidate], ""
+            )
+            outputs[j]["Generated"] = outputs[j]["generated_text"].split("Output:")[-1]
             if "]" in outputs[j]["Calendar"]:
-                outputs[j]["Calendar"] = outputs[j]["Calendar"].replace('Calendar(', "").split(
-                    "]"
-                )[0]
-                if ")" in outputs[j]["Calendar"]:
-                    outputs[j]["Calendar"] = outputs[j][
-                        "Calendar"
-                    ].split(")")[0]
-                outputs[j]["Calendar_text"] = (
-                        "[Calendar()"
+                outputs[j]["Calendar"] = (
+                    outputs[j]["Calendar"].replace("Calendar(", "").split("]")[0]
                 )
+                if ")" in outputs[j]["Calendar"]:
+                    outputs[j]["Calendar"] = outputs[j]["Calendar"].split(")")[0]
+                outputs[j]["Calendar_text"] = "[Calendar()"
                 base_inputs = tokenizer(
-                    outputs[j]["Calendar_text"] + ']'
-                    + "\n",
+                    outputs[j]["Calendar_text"] + "]" + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 outputs[j]["Calendar"] = self.calendar(calendar_string)
                 outputs[j]["Calendar_text"] = (
-                        outputs[j]["Calendar_text"]
-                        + "->"
-                        + outputs[j]["Calendar"]
-                        + "]"
+                    outputs[j]["Calendar_text"] + "->" + outputs[j]["Calendar"] + "]"
                 )
                 test_inputs = tokenizer(
-                    outputs[j]["Calendar_text"]
-                    + "\n",
+                    outputs[j]["Calendar_text"] + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 test_inputs = torch.concat(
@@ -95,27 +85,29 @@ class CalendarPostprocessing(APICallPostprocessing):
                 max_token_len = max(max_token_len, test_inputs.shape[1])
                 max_token_len_base = max(max_token_len_base, test_inputs.shape[1])
                 generated_texts.append(
-                    [test_inputs, base_inputs, nums_to_keep[candidate], base_loss, outputs[j]]
+                    [
+                        test_inputs,
+                        base_inputs,
+                        nums_to_keep[candidate],
+                        base_loss,
+                        outputs[j],
+                    ]
                 )
         return generated_texts, max_token_len, max_token_len_base
 
-    def parse_article(self,
-                      data: dict,
-                      model: PreTrainedModel,
-                      tokenizer: PreTrainedTokenizerBase
-                      ):
+    def parse_article(
+        self, data: dict, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase
+    ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
         for i in range(5):
             if (N * (i + 1)) > tokens.shape[1]:
                 continue
-            input_tokens = tokens[:, (-N * (i + 1) - 1): (-N * (i) - 1)]
+            input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
             labels = tokens[
-                     :,
-                     int(tokens.shape[1] + (-N * (i + 1))): int(
-                         tokens.shape[1] + (-N * i)
-                     ),
-                     ]
+                :,
+                int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
+            ]
             ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
             print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
@@ -134,7 +126,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                 labels,
                 model,
                 tokenizer,
-                dparser.parse(data["url"], fuzzy=True)
+                dparser.parse(data["url"], fuzzy=True),
             )
             for output in new_outputs:
                 if output is None:

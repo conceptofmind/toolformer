@@ -20,6 +20,7 @@ from transformers import (
 
 from flash_attention.flash_attention_gptj_wrapper import FlashAttentionWrapper
 
+
 @dataclass
 class ModelArguments:
     """
@@ -37,12 +38,9 @@ class ModelArguments:
 
     max_positions: Optional[int] = field(
         default=8192,
-        metadata={
-            "help": (
-                "The maximun sequence length of the model."
-            )
-        },
+        metadata={"help": ("The maximun sequence length of the model.")},
     )
+
 
 @dataclass
 class DataTrainingArguments:
@@ -51,12 +49,15 @@ class DataTrainingArguments:
     """
 
     dataset_name: Optional[str] = field(
-        default="pile", metadata={"help": "The name of the dataset to use (via the datasets library)."}
+        default="pile",
+        metadata={"help": "The name of the dataset to use (via the datasets library)."},
     )
 
 
 def main():
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, TrainingArguments)
+    )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     last_checkpoint = get_last_checkpoint(training_args.output_dir)
     set_seed(training_args.seed)
@@ -67,21 +68,29 @@ def main():
     tokenizer.model_max_length = max_positions
     for each in model.gpt_neox.layers:
         original_emb = each.attention.rotary_emb
-        each.attention.rotary_emb = RotaryEmbedding(each.attention.rotary_ndims,max_positions,10000)
-        each.attention.bias = torch.tril(torch.ones((max_positions, max_positions), dtype=torch.uint8)).view(
-                    1, 1, max_positions, max_positions
-                )
-        each.attention = FlashAttentionWrapper(each.attention, max_seqlen = max_positions)
+        each.attention.rotary_emb = RotaryEmbedding(
+            each.attention.rotary_ndims, max_positions, 10000
+        )
+        each.attention.bias = torch.tril(
+            torch.ones((max_positions, max_positions), dtype=torch.uint8)
+        ).view(1, 1, max_positions, max_positions)
+        each.attention = FlashAttentionWrapper(each.attention, max_seqlen=max_positions)
 
     # patching for the random contiguous tensors bug
     for p in model.parameters():
         p = p.contiguous()
 
     def merge_questions_and_answers(examples):
-        out = tokenizer([question + " " + answer for question, answer in zip(examples["input"], examples["output"])])
+        out = tokenizer(
+            [
+                question + " " + answer
+                for question, answer in zip(examples["input"], examples["output"])
+            ]
+        )
         return out
 
     block_size = tokenizer.model_max_length
+
     def group_texts(examples):
         # Concatenate all texts.
         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
@@ -97,17 +106,18 @@ def main():
         }
         result["labels"] = result["input_ids"].copy()
         return result
-    
 
     if data_args.dataset_name == "pile":
         base_url = "https://the-eye.eu/public/AI/pile/"
         data_files = {
-            "train": [base_url + "train/"+ f"{idx:02d}.jsonl.zst" for idx in range(30)],
+            "train": [
+                base_url + "train/" + f"{idx:02d}.jsonl.zst" for idx in range(30)
+            ],
             "validation": base_url + "val.jsonl.zst",
             "test": base_url + "test.jsonl.zst",
         }
         datasets = load_dataset("json", data_files=data_files, streaming=True)
-        datasets = datasets.filter(lambda x: len(x["text"])>=max_positions)
+        datasets = datasets.filter(lambda x: len(x["text"]) >= max_positions)
         tokenized_datasets = datasets.map(
             lambda examples: tokenizer(examples["text"]),
             batched=True,
@@ -116,10 +126,10 @@ def main():
             group_texts,
             batched=True,
         )
-        lm_datasets = lm_datasets.filter(lambda x: len(x["input_ids"])>=max_positions)
+        lm_datasets = lm_datasets.filter(lambda x: len(x["input_ids"]) >= max_positions)
     else:
         raise Exception("Sorry, please the dataset specified can not be recognized")
-    
+
     def preprocess_logits_for_metrics(logits, labels):
         if isinstance(logits, tuple):
             # Depending on the model and config, logits may contain extra tensors,
@@ -141,12 +151,12 @@ def main():
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset= train_dataset,
-        eval_dataset= eval_dataset,
-        tokenizer = tokenizer,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
+        tokenizer=tokenizer,
         data_collator=default_data_collator,
         compute_metrics=compute_metrics,
-        preprocess_logits_for_metrics=preprocess_logits_for_metrics
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
 
     if training_args.resume_from_checkpoint is not None:
@@ -160,13 +170,13 @@ def main():
 
     metrics = train_result.metrics
 
-    max_train_samples = (len(train_dataset)
-    )
+    max_train_samples = len(train_dataset)
     metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
     trainer.log_metrics("train", metrics)
     trainer.save_metrics("train", metrics)
     trainer.save_state()
 
-if __name__  == "__main__":
+
+if __name__ == "__main__":
     main()
