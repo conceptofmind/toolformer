@@ -30,6 +30,8 @@ def check_apis_available(
     """
     tokenized_data = tokenizer(data["text"])["input_ids"]
     available = AvailableAPIs()
+    # In case we need a different version, found this here:
+    # https://stackoverflow.com/questions/28198370/regex-for-validating-correct-input-for-calculator
     calc_pattern = re.compile("^(\d+[\+\-\*\/]{1})+\d+$")
     if len(tokenized_data) < 8000:
         available.retrieval = False
