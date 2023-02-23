@@ -1,14 +1,14 @@
 import copy
-
 import requests
 import calendar
-
+import json
 import torch
 import wolframalpha
+import openai
 import datetime
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoModel
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, AutoModel, T5ForConditionalGeneration
 from typing import List
-from operator import pow, truediv, mul, add, sub  
+from operator import truediv, mul, add, sub  
 
 # Optional imports
 from googleapiclient.discovery import build
@@ -92,7 +92,7 @@ class ColBERTv2:
     def __init__(self, url: str):
         self.url = url
 
-    def __call__(self, query, k=10):
+    def __call__(self, query, k=1):
         topk = colbertv2_get_request(self.url, query, k)
 
         topk = [doc['text'] for doc in topk]
@@ -162,6 +162,29 @@ def Calculator(input_query: str):
 
 # Other Optional Tools
 
+'''
+HuggingFace API
+
+Uses HuggingFace's API to generate text.
+
+input_query - A string, the input query (e.g. "what is a dog?")
+
+output - A string, the generated text
+
+API_TOKEN - your HuggingFace API token
+'''
+def HuggingfaceAPI(input_query: str):
+    model_id = "gpt-neox-20b"
+    API_TOKEN = "YOUR_API_TOKEN"
+    API_URL = "https://api-inference.huggingface.co/models/{model_id}".format(model_id=model_id)
+    headers = {"Authorization": f"Bearer {API_TOKEN}".format(API_TOKEN=API_TOKEN)}
+    def query(payload):
+        data = json.dumps(payload)
+        response = requests.request("POST", API_URL, headers=headers, data=data)
+        return json.loads(response.content.decode("utf-8"))
+    data = query(input_query)
+    return data[0]["generated_text"]
+
 
 '''
 Wolfram Alpha Calculator
@@ -219,6 +242,52 @@ def google_search(input_query: str):
 
 
 '''
+SteamSHP
+
+Uses HuggingFace's transformers library to generate text.
+
+input_query - A string, the input query (e.g. "what is a dog?")
+
+output - A list of strings, the generated text
+
+'''
+def SteamSHP(input_query: str):
+    device = 'cuda' # if you have a GPU
+    tokenizer = AutoTokenizer.from_pretrained('stanfordnlp/SteamSHP-flan-t5-large')
+    model = T5ForConditionalGeneration.from_pretrained('stanfordnlp/SteamSHP-flan-t5-large').to(device)
+    x = tokenizer([input_query], return_tensors='pt').input_ids.to(device)
+    y = model.generate(x, max_new_tokens=1)
+    output = tokenizer.batch_decode(y, skip_special_tokens=True)
+    return output
+
+
+'''
+Goose AI
+
+pip install openai
+
+Uses GPT-NeoX 20B to generate text.
+
+input_query - A string, the input query (e.g. "what is a dog?")
+
+output - A string, the generated text
+
+openai.api_key - your GooseAI API key
+'''
+def GooseAI(input_query: str):
+    openai.api_key = "YOUR_API_KEY"
+    openai.api_base = "https://api.goose.ai/v1"
+    # Create a completion, return results streaming as they are generated. 
+    # Run with `python3 -u` to ensure unbuffered output.
+    completion = openai.Completion.create(
+        engine="gpt-neo-20b",
+        prompt=input_query,
+        max_tokens=160
+        )
+    return completion.choices[0].text
+
+
+'''
 Bing Search
 
 Uses Bing's Custom Search API to retrieve Bing Search results.
@@ -260,19 +329,25 @@ def bing_search(input_query: str):
 
 
 if __name__ == '__main__':
- 
+
+    print(WikiSearch('What is a dog?')) # Outputs a list of strings, each string is a Wikipedia document
+
     print(Calendar()) # Outputs a string, the current date
 
     print(Calculator('400/1400')) # For Optional Basic Calculator
-
-    print(WikiSearch('What is a dog?')) # Outputs a list of strings, each string is a Wikipedia document
 
     print(MT("Un chien c'est quoi?")) # What is a dog?
 
 
     # Optional Tools
 
+    print(HuggingfaceAPI('What is a dog?')) # Outputs a string, the answer to the input query
+
+    print(SteamSHP('What is a dog?')) # Outputs a list with an answer
+
     print(WolframAlphaCalculator('What is 2 + 2?')) # 4
+
+    print(GooseAI('What is a dog?')) # Outputs a string, the answer to the input query
 
     print(google_search('What is a dog?')) 
     # Outputs a list of dictionaries, each dictionary is a Google Search result
