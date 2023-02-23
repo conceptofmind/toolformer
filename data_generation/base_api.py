@@ -101,7 +101,6 @@ class APICallPostprocessing:
                 base_outputs = model(input_tokens[:, input_start:].cuda()).logits[
                                :, index:index+M
                                ]
-                print(base_outputs.shape)
                 # Find starting location...
                 num_keep = int(input_tokens[:, input_start:].shape[1] - index)
                 # Calculate loss without API
@@ -207,6 +206,9 @@ class APICallPostprocessing:
                       outputs[i][0]['base_loss'],
                       *args,
                       **kwargs)
+                if len(generated_texts) == 0:
+                    outputs[i] = None
+                    continue
                 # shape the batches...
                 for j in range(len(generated_texts)):
                     generated_texts[j].append(
@@ -295,7 +297,7 @@ class APICallPostprocessing:
                     del outputs[i]['base_outputs']
                 else:
                     outputs[i] = None
-        print(json.dumps(outputs, indent=2))
+        # print(json.dumps(outputs, indent=2))
         return outputs
 
     def parse_article(self,
