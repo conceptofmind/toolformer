@@ -1,4 +1,7 @@
 import copy
+import re
+import random
+
 import requests
 import calendar
 import json
@@ -14,10 +17,20 @@ from transformers import (
 )
 from typing import List
 from operator import truediv, mul, add, sub
-
+from prompts import calculator_prompt, wikipedia_search_prompt, machine_translation_prompt, calendar_prompt, retrieval_prompt
 # Optional imports
 from googleapiclient.discovery import build
 
+
+class Tool:
+    prompt: str = ""
+
+    def heuristic(self, input: dict) -> bool:
+        return True
+
+    def __call__(self, text: str) -> str:
+        return ""
+    
 
 """
 Calendar
@@ -29,9 +42,15 @@ input - None
 output - A string, the current date.
 """
 
+class Calendar(Tool):
+    prompt = calendar_prompt
 
-def Calendar(date=datetime.datetime.now()):
-    return f"Today is {calendar.day_name[date.weekday()]}, {calendar.month_name[date.month]} {date.day}, {date.year}."
+    def __init__(self, date=datetime.datetime.now()):
+        self.date = date
+
+    def __call__(self, text: str) -> str:
+        return f"Today is {calendar.day_name[self.date.weekday()]}, {calendar.month_name[self.date.month]} {self.date.day}, {self.date.year}."
+    
 
 
 """
@@ -136,13 +155,16 @@ def colbertv2_get_request(url: str, query: str, k: int):
     return topk
 
 
-def WikiSearch(input_query: str):
-    k = 10
-    retrieval_model = ColBERTv2(
-        "http://ec2-44-228-128-229.us-west-2.compute.amazonaws.com:8893/api/search"
-    )
-    output = retrieval_model(input_query, k)
-    return output
+class WikiSearch(Tool):
+    prompt = wikipedia_search_prompt
+
+    def __call__(self, input_query: str):
+        k = 10
+        retrieval_model = ColBERTv2(
+            "http://ec2-44-228-128-229.us-west-2.compute.amazonaws.com:8893/api/search"
+        )
+        output = retrieval_model(input_query, k)
+        return output
 
 
 """
@@ -156,17 +178,22 @@ output - A string, the translated input query.
 """
 
 
-def MT(input_query: str):
-    model_name = "facebook/nllb-200-distilled-600M"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    input_ids = tokenizer(input_query, return_tensors="pt")
-    outputs = model.generate(
-        **input_ids,
-        forced_bos_token_id=tokenizer.lang_code_to_id["eng_Latn"],
-    )
-    output = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
-    return output
+class MT(Tool): 
+    prompt = machine_translation_prompt
+
+    def __init__(self):
+        self.model_name = "facebook/nllb-200-distilled-600M"
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
+
+    def __call__(self, text: str) -> str:
+        input_ids = self.tokenizer(text, return_tensors="pt")
+        outputs = self.model.generate(
+            **input_ids,
+            forced_bos_token_id=self.tokenizer.lang_code_to_id["eng_Latn"],
+        )
+        output = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+        return output
 
 
 """
@@ -181,15 +208,36 @@ output - A float, the result of the calculation
 Adapted from: https://levelup.gitconnected.com/3-ways-to-write-a-calculator-in-python-61642f2e4a9a 
 """
 
+class Calculator(Tool):
+    prompt = calculator_prompt
 
-def Calculator(input_query: str):
-    operators = {"+": add, "-": sub, "*": mul, "/": truediv}
-    if input_query.isdigit():
-        return float(input_query)
-    for c in operators.keys():
-        left, operator, right = input_query.partition(c)
-        if operator in operators:
-            return round(operators[operator](Calculator(left), Calculator(right)), 2)
+    def heuristic(self, input: dict):
+        text = input["text"]
+        calc_pattern = re.compile("^(\d+[\+\-\*\/]{1})+\d+$")
+        operators = bool(re.search(calc_pattern, text))
+        equals = any(
+            ["=" in text, "equal to" in text, "total of" in text, "average of" in text]
+        )
+        if not (operators and equals):
+            text = text.replace("\n", " ")
+            text = text.split(" ")
+            text = [item for item in text if item.replace(".", "", 1).isnumeric()]
+            if len(text) >= 3:
+                if random.randint(0, 99) == 0:
+                    return True
+        else:
+            return True
+
+        return False
+
+    def __call__(self, input_query: str):
+        operators = {"+": add, "-": sub, "*": mul, "/": truediv}
+        if input_query.isdigit():
+            return float(input_query)
+        for c in operators.keys():
+            left, operator, right = input_query.partition(c)
+            if operator in operators:
+                return round(operators[operator](self(left), self(right)), 2)
 
 
 # Other Optional Tools
@@ -207,21 +255,24 @@ API_TOKEN - your HuggingFace API token
 """
 
 
-def HuggingfaceAPI(input_query: str):
-    model_id = "gpt-neox-20b"
-    API_TOKEN = "YOUR_API_TOKEN"
-    API_URL = "https://api-inference.huggingface.co/models/{model_id}".format(
-        model_id=model_id
-    )
-    headers = {"Authorization": f"Bearer {API_TOKEN}".format(API_TOKEN=API_TOKEN)}
+class HuggingFaceAPI(Tool):
+    def __call__(input_query: str):
+        model_id = "gpt-neox-20b"
+        API_TOKEN = "YOUR_API_TOKEN"
+        API_URL = "https://api-inference.huggingface.co/models/{model_id}".format(
+            model_id=model_id
+        )
+        headers = {"Authorization": f"Bearer {API_TOKEN}".format(API_TOKEN=API_TOKEN)}
 
-    def query(payload):
-        data = json.dumps(payload)
-        response = requests.request("POST", API_URL, headers=headers, data=data)
-        return json.loads(response.content.decode("utf-8"))
+        def query(payload):
+            data = json.dumps(payload)
+            response = requests.request("POST", API_URL, headers=headers, data=data)
+            return json.loads(response.content.decode("utf-8"))
 
-    data = query(input_query)
-    return data[0]["generated_text"]
+        data = query(input_query)
+        return data[0]["generated_text"]
+
+   
 
 
 """
