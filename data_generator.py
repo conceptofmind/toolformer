@@ -1,3 +1,5 @@
+import os
+
 import torch
 from transformers import (
     AutoModelForCausalLM,
@@ -45,8 +47,15 @@ if __name__ == "__main__":
     output_dataset = list()
     start_time = time.process_time()
     num_examples = int(25000.0/float(args.num_devices))
+    start_count = -1
+    if os.path.isfile(f"retrieval_data_{args.device_id}.json"):
+        with open(f"retrieval_data_{args.device_id}.json") as f:
+            start_count = json.load(f)[-1]['file_index']
     while found_examples < num_examples:
         data = next(iter_data)
+        if file_counter < start_count:
+            file_counter += 1
+            continue
         if file_counter % args.num_devices != args.device_id:
             file_counter += 1
             continue

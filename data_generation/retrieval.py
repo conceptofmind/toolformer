@@ -15,6 +15,7 @@ nltk.download("punkt")
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
 N = 128  # SEQ Len
+MAX_LEN = 1024 # Maximum retrieval length
 M = 16  # Min Loss Span To Consider
 
 
@@ -85,6 +86,8 @@ class RetrievalPostprocessing(APICallPostprocessing):
                     ],
                     dim=1,
                 )
+                if test_inputs.shape[1] > MAX_LEN:
+                    continue
                 base_inputs = torch.concat(
                     [
                         base_inputs.cuda(),
