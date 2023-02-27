@@ -48,6 +48,7 @@ if __name__ == "__main__":
     while found_examples < num_examples:
         data = next(iter_data)
         if file_counter % args.num_devices != args.device_id:
+            file_counter += 1
             continue
         available = check_apis_available(data, gpt_tokenizer)
         test = available.retrieval
