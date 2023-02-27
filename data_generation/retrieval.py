@@ -14,7 +14,7 @@ nltk.download("punkt")
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
-N = 64  # SEQ Len
+N = 128  # SEQ Len
 M = 16  # Min Loss Span To Consider
 
 
@@ -67,6 +67,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 outputs[j]["Retrieval"] = self.retriever.retrieval(
                     retrieval_strings, outputs[j]["Retrieval"], 3
                 )
+                outputs[j]["Retrieval_output"] = [outputs[j]["Retrieval_text"][1:], ", ".join(outputs[j]["Retrieval"])]
                 outputs[j]["Retrieval_text"] = (
                     outputs[j]["Retrieval_text"]
                     + "->"
@@ -108,16 +109,18 @@ class RetrievalPostprocessing(APICallPostprocessing):
         self, data: dict, model: PreTrainedModel, tokenizer: PreTrainedTokenizerBase
     ):
         outputs = list()
-        # TODO: Make this some minimum token count instead of just the last 5
-        for i in range(5):
-            tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
+        tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
+        start_step = 2048//N
+        ret_skip = 1024//N  # naively assuming the model should be able to look back if it's less than this.
+        total_steps = tokens.shape[1]//N
+        for i in range(start_step, total_steps):
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
             labels = tokens[
                 :,
                 int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
             ]
-            ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
-            print(tokens.shape)
+            ret_tokens = tokens[:, : (-(N) * ((i - ret_skip) + 1) - 1)]
+            # print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
             ret_strings = tokenize.sent_tokenize(tokenizer.decode(ret_tokens[0]))
             # print(ret_strings)
@@ -125,8 +128,8 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 retrieval_prompt.replace("<REPLACEGPT>", string) + string,
                 return_tensors="pt",
             )["input_ids"]
-            print(string)
-            print(model_input.shape)
+            # print(string)
+            # print(model_input.shape)
             with torch.no_grad():
                 output = model(model_input.cuda()).logits.cpu()[:, -N:]
             new_outputs = self.generate_continuations(
@@ -141,4 +144,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 if output is None:
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
-                outputs.append(output)
+                # filter by score
+                if output["Score"] > 1.0:
+                    outputs.append([output["Score"], output["index"]] + output["Retrieval_output"])
+        return outputs

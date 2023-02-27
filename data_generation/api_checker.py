@@ -32,12 +32,10 @@ def check_apis_available(
     # In case we need a different version, found this here:
     # https://stackoverflow.com/questions/28198370/regex-for-validating-correct-input-for-calculator
     calc_pattern = re.compile("^(\d+[\+\-\*\/]{1})+\d+$")
-    if len(tokenized_data) < 8000:
+    if len(tokenized_data) < 4096:
         available.retrieval = False
     try:
-        print("---")
-        print(data["url"])
-        print(dparser.parse(data["url"], fuzzy=True))
+        date = dparser.parse(data["url"], fuzzy=True)
     except (ValueError, OverflowError):
         available.calendar = False
     available.calculator = False
