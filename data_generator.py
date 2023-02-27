@@ -50,7 +50,10 @@ if __name__ == "__main__":
     start_count = -1
     if os.path.isfile(f"retrieval_data_{args.device_id}.json"):
         with open(f"retrieval_data_{args.device_id}.json") as f:
-            start_count = json.load(f)[-1]['file_index']
+            output_dataset = json.load(f)
+            start_count = output_dataset[-1]['file_index']
+            for item in output_dataset:
+                num_examples -= len(item['retrieval_outputs'])
     while found_examples < num_examples:
         data = next(iter_data)
         if file_counter < start_count:
