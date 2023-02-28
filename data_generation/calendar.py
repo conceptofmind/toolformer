@@ -12,8 +12,9 @@ import dateutil.parser as dparser
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
-N = 64  # SEQ Len
+N = 128  # SEQ Len
 M = 16  # Min Loss Span To Consider
+MAX_LEN = 1024  # Maximum calendar length
 
 
 class CalendarPostprocessing(APICallPostprocessing):
@@ -21,7 +22,7 @@ class CalendarPostprocessing(APICallPostprocessing):
         self,
         start_tokens: List[int],
         end_tokens: List[int],
-        minimum_percentage: float = 0.1,
+        minimum_percentage: float = 0.0,
     ):
         self.calendar = Calendar
         self.api_text = "Calendar("
@@ -61,6 +62,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 outputs[j]["Calendar"] = self.calendar(calendar_string)
+                outputs[j]["Calendar_output"] = [outputs[j]["Calendar_text"][1:], outputs[j]["Calendar"]]
                 outputs[j]["Calendar_text"] = (
                     outputs[j]["Calendar_text"] + "->" + outputs[j]["Calendar"] + "]"
                 )
@@ -75,6 +77,8 @@ class CalendarPostprocessing(APICallPostprocessing):
                     ],
                     dim=1,
                 )
+                if test_inputs.shape[1] > MAX_LEN:
+                    continue
                 base_inputs = torch.concat(
                     [
                         base_inputs.cuda(),
@@ -100,7 +104,7 @@ class CalendarPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        for i in range(5):
+        for i in range((tokens.shape[1]-1)//N):
             if (N * (i + 1)) > tokens.shape[1]:
                 continue
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
@@ -132,4 +136,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                 if output is None:
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
-                outputs.append(output)
+                # filter by score
+                if output["Score"] > 0.5:
+                    outputs.append([output["Score"], output["index"]] + output["Calendar_output"])
+        return outputs

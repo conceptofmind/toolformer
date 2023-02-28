@@ -15,7 +15,7 @@ nltk.download("punkt")
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
 N = 128  # SEQ Len
-MAX_LEN = 1024 # Maximum retrieval length
+MAX_LEN = 1024  # Maximum retrieval length
 M = 16  # Min Loss Span To Consider
 
 
