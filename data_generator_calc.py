@@ -72,7 +72,7 @@ if __name__ == "__main__":
                 eta_h = eta_m // 60
                 eta_m = eta_m - (eta_h * 60)
                 eta_s = eta_s - ((eta_m * 60) + (eta_h * 60 * 60))
-                print(f"Found: {found_examples}/{num_examples}, ETA: {eta_h}H:{eta_m}M:{eta_s}s")
+                print(f"device {args.device_id} Found: {found_examples}/{num_examples}, ETA: {eta_h}H:{eta_m}M:{eta_s}s")
                 continue
             output_dataset.append(
                 {
@@ -88,7 +88,7 @@ if __name__ == "__main__":
             eta_h = eta_m // 60
             eta_m = eta_m - (eta_h*60)
             eta_s = eta_s - ((eta_m*60) + (eta_h*60*60))
-            print(f"Found: {found_examples}/{num_examples}, ETA: {eta_h}H:{eta_m}M:{eta_s}s")
+            print(f"device {args.device_id} Found: {found_examples}/{num_examples}, ETA: {eta_h}H:{eta_m}M:{eta_s}s")
             if found_examples//100 > prev_found//100:
                 with open(f"calc_data_{args.device_id}.json", 'w') as f:
                     json.dump(output_dataset, f, indent=2)
