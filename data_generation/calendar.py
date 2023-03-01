@@ -137,6 +137,6 @@ class CalendarPostprocessing(APICallPostprocessing):
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
-                if output["Score"] > 0.5:
+                if output["Score"] > 0.0:
                     outputs.append([output["Score"], output["index"]] + output["Calendar_output"])
         return outputs

@@ -64,7 +64,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
                 )["input_ids"].cuda()
                 try:
                     outputs[j]["Calculator"] = self.calculator(outputs[j]["Calculator"])
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, ZeroDivisionError):
                     continue
                 if outputs[j]["Calculator"] is None:
                     continue
@@ -144,6 +144,6 @@ class CalculatorPostprocessing(APICallPostprocessing):
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
-                if output["Score"] > 0.5:
+                if output["Score"] > 0.0:
                     outputs.append([output["Score"], output["index"]] + output["Calculator_output"])
         return outputs
