@@ -2,3 +2,5 @@ google-api-python-client
 wolframalpha
 transformers
 openai
+langchain
+cohere

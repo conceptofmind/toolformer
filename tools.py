@@ -6,6 +6,7 @@ import torch
 import wolframalpha
 import openai
 import datetime
+import time
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -14,6 +15,8 @@ from transformers import (
 )
 from typing import List
 from operator import truediv, mul, add, sub
+from langchain.chains import LLMChain
+from langchain import Cohere, PromptTemplate
 
 # Optional imports
 from googleapiclient.discovery import build
@@ -193,6 +196,27 @@ def Calculator(input_query: str):
 
 
 # Other Optional Tools
+
+"""
+LangChain LLMChain
+
+input_question - A string, the input query (e.g. "what is a dog?")
+
+output - String for generation
+
+Requires that you set your COHERE_API_KEY environment variable before starting.
+"""
+def langchain_llmchain(input_question):
+    # TODO: Check succinct if it's good once we don't have rate limited APIs
+    template = """Please be succinct in your answer to this question.
+Question: {question}
+
+Answer: Let's think step by step."""
+    prompt = PromptTemplate(template=template, input_variables=["question"])
+    llm = Cohere(model="command-xlarge-nightly")
+    chain = LLMChain(llm=llm, prompt=prompt)
+    return chain.predict(question=input_question)
+
 
 """
 HuggingFace API
@@ -383,6 +407,8 @@ def bing_search(input_query: str):
 
 
 if __name__ == "__main__":
+    print(langchain_llmchain("Please respond"))
+
     print(
         WikiSearch("What is a dog?")
     )  # Outputs a list of strings, each string is a Wikipedia document
