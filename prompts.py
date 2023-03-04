@@ -32,6 +32,21 @@ Input: <REPLACEGPT>
 Output:
 """
 
+llmchain_prompt = """
+Your task is to complete a given piece of text. 
+You can use a Large Language Model to predict information. 
+You can do so by writing "[LLMChain(term)]" where "term" is the search term you want to look up.
+Here are some examples of API calls:
+Input: As we mentioned before, the colors on the flag of Ghana have the following meanings: red is for the blood of martyrs, green for forests, and gold for mineral wealth.
+Output: As we mentioned before, the colors on the flag of Ghana have the following meanings: red is for [LLMChain("Ghana flag color")] the blood of martyrs, green for forests, and gold for mineral wealth.
+Input: But what are the risks during production of nanomaterials? Some nanomaterials may give rise to various kinds of lung damage.
+Output: But what are the risks during production of nanomaterials? [LLMChain("nanomaterial production risks")] Some nanomaterials may give rise to various kinds of lung damage.
+Input: Metformin is the first-line drug for patients with type 2 diabetes and obesity.
+Output: Metformin is the first-line drug for [LLMChain("Metformin is a drug for")] patients with type 2 diabetes and obesity.
+Input: <REPLACEGPT>
+Output:
+"""
+
 wikipedia_search_prompt = """
 Your task is to complete a given piece of text. 
 You can use a Wikipedia Search API to look up information. 

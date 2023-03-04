@@ -12,6 +12,7 @@ class AvailableAPIs:
     retrieval: bool = True
     calendar: bool = True
     calculator: bool = True
+    llmchain: bool = True
 
     def check_any_available(self):
         return any([self.retrieval, self.calendar, self.calculator])
