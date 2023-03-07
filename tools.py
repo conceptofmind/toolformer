@@ -18,13 +18,10 @@ from transformers import (
 )
 from typing import List
 from operator import truediv, mul, add, sub
-<<<<<<< HEAD
 from prompts import calculator_prompt, wikipedia_search_prompt, machine_translation_prompt, calendar_prompt, retrieval_prompt
-=======
 from langchain.chains import LLMChain
 from langchain import Cohere, PromptTemplate
 
->>>>>>> 50967039ec94981879a1dabb6c572ab8d7fbcfd3
 # Optional imports
 from googleapiclient.discovery import build
 
