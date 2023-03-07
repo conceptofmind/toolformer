@@ -3,14 +3,12 @@ from transformers import (
     PreTrainedTokenizerBase,
     PreTrainedModel,
 )
-import nltk
-from nltk import tokenize
-from tools import Retriever
-from prompts import retrieval_prompt
+from tools import langchain_llmchain
+from prompts import llmchain_prompt
 from typing import List
 from data_generation.base_api import APICallPostprocessing
 
-nltk.download("punkt")
+
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
@@ -19,15 +17,15 @@ MAX_LEN = 1024  # Maximum retrieval length
 M = 16  # Min Loss Span To Consider
 
 
-class RetrievalPostprocessing(APICallPostprocessing):
+class LLMChainPostprocessing(APICallPostprocessing):
     def __init__(
         self,
         start_tokens: List[int],
         end_tokens: List[int],
         minimum_percentage: float = 0.1,
     ):
-        self.retriever = Retriever()
-        self.api_text = "Retrieval("
+        self.llmchain = langchain_llmchain
+        self.api_text = "LLMChain("
         super().__init__(start_tokens, end_tokens, minimum_percentage)
 
     def add_api_calls(
@@ -43,40 +41,41 @@ class RetrievalPostprocessing(APICallPostprocessing):
         *args,
         **kwargs
     ):
-        retrieval_strings = args[0]
         generated_texts = list()
         max_token_len = N
         max_token_len_base = N
         for j in range(len(outputs)):
-            outputs[j]["Retrieval"] = outputs[j]["generated_text"].replace(
+            outputs[j]["LLMChain"] = outputs[j]["generated_text"].replace(
                 texts_to_test[candidate], ""
             )
             outputs[j]["Generated"] = outputs[j]["generated_text"].split("Output:")[-1]
-            if "]" in outputs[j]["Retrieval"]:
-                outputs[j]["Retrieval"] = (
-                    outputs[j]["Retrieval"].replace("Retrieval(", "").split("]")[0]
+            if "]" in outputs[j]["LLMChain"]:
+                outputs[j]["LLMChain"] = (
+                    outputs[j]["LLMChain"].replace("LLMChain(", "").split("]")[0]
                 )
-                if ")" in outputs[j]["Retrieval"]:
-                    outputs[j]["Retrieval"] = outputs[j]["Retrieval"].split(")")[0]
-                outputs[j]["Retrieval_text"] = (
-                    "[Retrieval(" + outputs[j]["Retrieval"] + ")"
+                if ")" in outputs[j]["LLMChain"]:
+                    outputs[j]["LLMChain"] = outputs[j]["LLMChain"].split(")")[0]
+                if outputs[j]["LLMChain"][0] == "\"":
+                    outputs[j]["LLMChain"] = outputs[j]["LLMChain"][1:]
+                if outputs[j]["LLMChain"][-1] == "\"":
+                    outputs[j]["LLMChain"] = outputs[j]["LLMChain"][:-1]
+                outputs[j]["LLMChain_text"] = (
+                    "[LLMChain(" + outputs[j]["LLMChain"] + ")"
                 )
                 base_inputs = tokenizer(
-                    outputs[j]["Retrieval_text"] + "]" + "\n",
+                    outputs[j]["LLMChain_text"] + "]" + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
-                outputs[j]["Retrieval"] = self.retriever.retrieval(
-                    retrieval_strings, outputs[j]["Retrieval"], 3
-                )
-                outputs[j]["Retrieval_output"] = [outputs[j]["Retrieval_text"][1:], ", ".join(outputs[j]["Retrieval"])]
-                outputs[j]["Retrieval_text"] = (
-                    outputs[j]["Retrieval_text"]
+                outputs[j]["LLMChain"] = str(self.llmchain(outputs[j]["LLMChain"]))
+                outputs[j]["LLMChain_output"] = [outputs[j]["LLMChain_text"][1:], outputs[j]["LLMChain"]]
+                outputs[j]["LLMChain_text"] = (
+                    outputs[j]["LLMChain_text"]
                     + "->"
-                    + ", ".join(outputs[j]["Retrieval"])
+                    + outputs[j]["LLMChain"]
                     + "]"
                 )
                 test_inputs = tokenizer(
-                    outputs[j]["Retrieval_text"] + "\n",
+                    outputs[j]["LLMChain_text"] + "\n",
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 test_inputs = torch.concat(
@@ -113,8 +112,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        start_step = 2048//N
-        ret_skip = 1024//N  # naively assuming the model should be able to look back if it's less than this.
+        start_step = 0
         total_steps = tokens.shape[1]//N
         for i in range(start_step, total_steps):
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
@@ -122,13 +120,11 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 :,
                 int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
             ]
-            ret_tokens = tokens[:, : (-(N) * ((i - ret_skip) + 1) - 1)]
             # print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
-            ret_strings = tokenize.sent_tokenize(tokenizer.decode(ret_tokens[0]))
             # print(ret_strings)
             model_input = tokenizer(
-                retrieval_prompt.replace("<REPLACEGPT>", string) + string,
+                llmchain_prompt.replace("<REPLACEGPT>", string) + string,
                 return_tensors="pt",
             )["input_ids"]
             # print(string)
@@ -141,13 +137,13 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 labels,
                 model,
                 tokenizer,
-                ret_strings,
             )
+            print(new_outputs)
             for output in new_outputs:
                 if output is None:
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
                 if output["Score"] > 1.0:
-                    outputs.append([output["Score"], output["index"]] + output["Retrieval_output"])
+                    outputs.append([output["Score"], output["index"]] + output["LLMChain_output"])
         return outputs

@@ -12,8 +12,9 @@ import dateutil.parser as dparser
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
-N = 64  # SEQ Len
+N = 128  # SEQ Len
 M = 16  # Min Loss Span To Consider
+MAX_LEN = 1024  # Maximum calculator length
 
 
 class CalculatorPostprocessing(APICallPostprocessing):
@@ -21,7 +22,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
         self,
         start_tokens: List[int],
         end_tokens: List[int],
-        minimum_percentage: float = 0.1,
+        minimum_percentage: float = 0.0,
     ):
         self.calculator = Calculator
         self.api_text = "Calculator("
@@ -63,10 +64,11 @@ class CalculatorPostprocessing(APICallPostprocessing):
                 )["input_ids"].cuda()
                 try:
                     outputs[j]["Calculator"] = self.calculator(outputs[j]["Calculator"])
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, ZeroDivisionError):
                     continue
                 if outputs[j]["Calculator"] is None:
                     continue
+                outputs[j]["Calculator_output"] = [outputs[j]["Calculator_text"][1:], str(outputs[j]["Calculator"])]
                 outputs[j]["Calculator_text"] = (
                     outputs[j]["Calculator_text"]
                     + "->"
@@ -84,6 +86,8 @@ class CalculatorPostprocessing(APICallPostprocessing):
                     ],
                     dim=1,
                 )
+                if test_inputs.shape[1] > MAX_LEN:
+                    continue
                 base_inputs = torch.concat(
                     [
                         base_inputs.cuda(),
@@ -109,7 +113,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        for i in range(tokens.shape[1] // N):
+        for i in range((tokens.shape[1]-1)//N):
             if (N * (i + 1)) > tokens.shape[1]:
                 continue
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
@@ -117,7 +121,6 @@ class CalculatorPostprocessing(APICallPostprocessing):
                 :,
                 int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
             ]
-            ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
             # print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
             # print(ret_strings)
@@ -140,4 +143,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
                 if output is None:
                     continue
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
-                outputs.append(output)
+                # filter by score
+                if output["Score"] > 0.0:
+                    outputs.append([output["Score"], output["index"]] + output["Calculator_output"])
+        return outputs
