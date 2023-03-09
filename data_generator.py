@@ -183,7 +183,8 @@ async def sample_api_calls(
 async def api_loss_reduction(
     model: Callable[[torch.Tensor], Awaitable[torch.Tensor]],
     tokenizer: AutoTokenizer,
-    tool_use: ToolUse,
+    tool_use: ToolUse,  
+    max_length: int = 1024,
 ):
     api_use = tokenizer(
         f" [{tool_use.tool.name}({tool_use.args}) -> {tool_use.output}]",
@@ -196,19 +197,18 @@ async def api_loss_reduction(
     )
 
     input_list = [
-        torch.cat([api_use.input_ids[0], tool_use.tokens[0]], dim=0),
-        torch.cat([api_args.input_ids[0], tool_use.tokens[0]], dim=0),
+        torch.cat([api_use.input_ids[0], tool_use.tokens[0]], dim=0)[:max_length],
+        torch.cat([api_args.input_ids[0], tool_use.tokens[0]], dim=0)[:max_length],
         tool_use.tokens[0],
     ]
 
     inputs = torch.nn.utils.rnn.pad_sequence(
         input_list, batch_first=True, padding_value=tokenizer.pad_token_id
-    )
+    )[:, :max_length]
 
     input_tokens = inputs[:, :-1]
     label_tokens = inputs[:, 1:]
     input_lengths = torch.tensor([x.shape[0] for x in input_list])
-
     prompt_length = input_lengths[2].item() - 1
     suffix_length = prompt_length - tool_use.insert_index
 
@@ -349,7 +349,7 @@ async def main(
                 api_call_threshold=0.05,
             ):
                 lm_loss_diff = await api_loss_reduction(
-                    infer_model, tokenizer, tool_use
+                    infer_model, tokenizer, tool_use, max_length=max_length
                 )
                 if lm_loss_diff.item() > tau:
                     return tool_use
