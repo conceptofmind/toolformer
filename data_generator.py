@@ -94,7 +94,6 @@ async def sample_api_calls(
     max_length: int = 1024,
     new_tokens: int = 100,
 ):
-
     # Build annotator prompt with <REPLACEGPT> as placeholder for the prompt
     # like "Input: example1\nOutput: annotated example1\nInput: <REPLACEGPT>\nOutput: "
     annotate_prompt = tool.prompt.replace("<REPLACEGPT>", prompt)
@@ -183,7 +182,7 @@ async def sample_api_calls(
 async def api_loss_reduction(
     model: Callable[[torch.Tensor], Awaitable[torch.Tensor]],
     tokenizer: AutoTokenizer,
-    tool_use: ToolUse,  
+    tool_use: ToolUse,
     max_length: int = 1024,
 ):
     api_use = tokenizer(
@@ -271,7 +270,6 @@ def prepare_inference_inputs(
 async def infer(
     triton_client, model_name, input_ids, new_tokens: int = 1, temperature: float = 1.0
 ):
-
     inputs, outputs = prepare_inference_inputs(input_ids, new_tokens, temperature)
 
     triton_model_name = model_name.replace("/", "--")
@@ -299,7 +297,6 @@ async def main(
     async with grpcclient.InferenceServerClient(
         url=url,
     ) as triton_client:
-
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.truncation_side = "left"
@@ -310,7 +307,9 @@ async def main(
                 tool=Calculator(),
                 args="1+1",
                 output="2",
-                tokens=tokenizer("the result of 1+1 is 2", return_tensors="pt").input_ids,
+                tokens=tokenizer(
+                    "the result of 1+1 is 2", return_tensors="pt"
+                ).input_ids,
                 prompt="the result of 1+1 is 2",
                 insert_index=6,
             ).render(tokenizer=tokenizer),
@@ -354,13 +353,6 @@ async def main(
                 if lm_loss_diff.item() > tau:
                     return tool_use
 
-        async def sample_tool_use(data):
-            for tool in tools:
-                if tool.heuristic(data):
-                    return await sample_and_filter_api_calls(
-                        tool, data["text"], top_k=5, n_gen=1
-                    )
-
         pbar = tqdm(total=max_datapoints)
         pbar.set_description("Datapoints processed")
 
@@ -370,14 +362,27 @@ async def main(
             counter = 0
 
             while True:
-                data_samples = [next(iter_data) for _ in range(max_concurrent)]
+                data_samples = []
+                for _ in range(max_concurrent):
+                    try:
+                        data = next(iter_data)
+                        for tool in tools:
+                            if tool.heuristic(data):
+                                data_samples.append((tool, data))
+                    except StopIteration:
+                        break
                 tasks = [
-                    asyncio.create_task(sample_tool_use(data)) for data in data_samples
+                    asyncio.create_task(
+                        sample_and_filter_api_calls(
+                            tool, data["text"], top_k=5, n_gen=1
+                        )
+                    )
+                    for tool, data in data_samples
                 ]
                 pbar.update(len(data_samples))
 
                 for sampled_tool_use in asyncio.as_completed(tasks):
-                    tool_use = await sampled_tool_use   
+                    tool_use = await sampled_tool_use
                     if tool_use is not None:
                         counter += 1
                         tooled_pbar.update(1)
