@@ -166,7 +166,10 @@ async def sample_api_calls(
             tool_args = match.group(2)
 
             if tool_name == tool.name:
-                api_output = tool(tool_args)
+                loop = asyncio.get_running_loop()
+
+                api_output = await loop.run_in_executor(None, tool, tool_args)
+                
                 few_shot_prompt_start = prefix_tokens.shape[1]
                 prompt_tokens = input_tokens[:, few_shot_prompt_start:]
                 yield ToolUse(
