@@ -46,23 +46,31 @@ class InferModel(nn.Module):
         super().__init__()
         self.traced_model = traced_model
 
-    def forward(self, input_ids: torch.Tensor, tensor_of_seq_len: torch.Tensor, temperature: torch.Tensor):
+    @torch.inference_mode()
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        tensor_of_seq_len: torch.Tensor,
+        temperature: torch.Tensor,
+    ):
         for _ in range(tensor_of_seq_len.shape[1] - 1):
             logits = self.traced_model(input_ids)
             next_token = torch.multinomial(
                 torch.softmax(logits[:, -1, :] / temperature, dim=-1), 1
             ).squeeze(1)
             input_ids = torch.cat([input_ids, next_token.unsqueeze(1)], dim=1)
-        
+
         # in TorchScript, the above logits var lifetime doesn't escape the loop's scope
         logits = self.traced_model(input_ids).float()
         next_token = torch.multinomial(
-                torch.softmax(logits[:, -1, :] / temperature, dim=-1), 1
+            torch.softmax(logits[:, -1, :] / temperature, dim=-1), 1
         ).squeeze(1)
         input_ids = torch.cat([input_ids, next_token.unsqueeze(1)], dim=1)
 
         return input_ids.int(), logits
 
+
+print(f"Converting {args.model} to TorchScript...")
 tokenizer = AutoTokenizer.from_pretrained(args.model)
 model = ModelLogits(AutoModelForCausalLM.from_pretrained(args.model))
 model.eval()
@@ -76,6 +84,8 @@ traced_script_module = torch.jit.trace(model, input.input_ids)
 
 print(f"{traced_script_module(input.input_ids)=}")
 
+print("Scripting generation wrapper...")
+
 scripted_generator_model = torch.jit.script(InferModel(traced_script_module))
 
 print(f"{input.input_ids=}")
@@ -83,14 +93,21 @@ x = input.input_ids, torch.empty(1, 5).cuda(), torch.full([1, 1], 1.0).cuda()
 print(f"{(scripted_generator_model(*x))=}")
 print(f"{tokenizer.decode(scripted_generator_model(*x)[0][0])=}")
 
-os.makedirs(f"model_store/{args.model}/1", exist_ok=True)
-scripted_generator_model.save(f"model_store/{args.model}/1/traced-model.pt")
+sanitized_name = args.model.replace("/", "--")
+print("Model renamed to ", sanitized_name)
+
+print("Saving TorchScript model...")
+
+os.makedirs(f"model_store/{sanitized_name}/1", exist_ok=True)
+scripted_generator_model.save(f"model_store/{sanitized_name}/1/traced-model.pt")
 
 config_path = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "triton_config.pbtxt"
 )
 with open(config_path) as f:
     template = Template(f.read())
-config = template.substitute({"model_name": args.model, "max_batch_size": args.max_batch_size})
-with open(f"model_store/{args.model}/config.pbtxt", "w") as f:
+config = template.substitute(
+    {"model_name": sanitized_name, "max_batch_size": args.max_batch_size}
+)
+with open(f"model_store/{sanitized_name}/config.pbtxt", "w") as f:
     f.write(config)

@@ -18,7 +18,13 @@ from transformers import (
 )
 from typing import List
 from operator import truediv, mul, add, sub
-from prompts import calculator_prompt, wikipedia_search_prompt, machine_translation_prompt, calendar_prompt, retrieval_prompt
+from prompts import (
+    calculator_prompt,
+    wikipedia_search_prompt,
+    machine_translation_prompt,
+    calendar_prompt,
+    retrieval_prompt,
+)
 from langchain.chains import LLMChain
 from langchain import Cohere, PromptTemplate
 
@@ -29,12 +35,16 @@ from googleapiclient.discovery import build
 class Tool:
     prompt: str = ""
 
+    def __init_subclass__(cls) -> None:
+        """Give instances of this class a name attribute corresponding to the subclass name."""
+        cls.name = cls.__name__
+
     def heuristic(self, input: dict) -> bool:
         return True
 
     def __call__(self, text: str) -> str:
         return ""
-    
+
 
 """
 Calendar
@@ -46,6 +56,7 @@ input - None
 output - A string, the current date.
 """
 
+
 class Calendar(Tool):
     prompt = calendar_prompt
 
@@ -54,7 +65,6 @@ class Calendar(Tool):
 
     def __call__(self, text: str) -> str:
         return f"Today is {calendar.day_name[self.date.weekday()]}, {calendar.month_name[self.date.month]} {self.date.day}, {self.date.year}."
-    
 
 
 """
@@ -182,7 +192,7 @@ output - A string, the translated input query.
 """
 
 
-class MT(Tool): 
+class MT(Tool):
     prompt = machine_translation_prompt
 
     def __init__(self):
@@ -211,6 +221,7 @@ output - A float, the result of the calculation
 
 Adapted from: https://levelup.gitconnected.com/3-ways-to-write-a-calculator-in-python-61642f2e4a9a 
 """
+
 
 class Calculator(Tool):
     prompt = calculator_prompt
@@ -255,6 +266,8 @@ output - String for generation
 
 Requires that you set your COHERE_API_KEY environment variable before starting.
 """
+
+
 def langchain_llmchain(input_question):
     # TODO: Check succinct if it's good once we don't have rate limited APIs
     template = """Please be succinct in your answer to this question.
@@ -296,8 +309,6 @@ class HuggingFaceAPI(Tool):
 
         data = query(input_query)
         return data[0]["generated_text"]
-
-   
 
 
 """

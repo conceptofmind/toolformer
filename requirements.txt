@@ -4,3 +4,5 @@ transformers
 openai
 langchain
 cohere
+tritonclient==2.31.0
+tqdm
