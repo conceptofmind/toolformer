@@ -379,10 +379,10 @@ async def main(
                     )
                     for tool, data in data_samples
                 ]
-                pbar.update(len(data_samples))
 
                 for sampled_tool_use in asyncio.as_completed(tasks):
                     tool_use = await sampled_tool_use
+                    pbar.update(1)
                     if tool_use is not None:
                         counter += 1
                         tooled_pbar.update(1)
