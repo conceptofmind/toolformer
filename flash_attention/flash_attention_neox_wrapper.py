@@ -1,10 +1,7 @@
 # From: https://github.com/kyleliang919/Long-context-transformers
 import torch
-from transformers.models.gpt_neox.modeling_gpt_neox import (
-    RotaryEmbedding,
-    apply_rotary_pos_emb,
-)
 from flash_attn.modules.mha import FlashSelfAttention
+from transformers.models.gpt_neox.modeling_gpt_neox import apply_rotary_pos_emb
 
 
 class FlashAttentionWrapper(torch.nn.Module):

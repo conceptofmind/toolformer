@@ -1,14 +1,12 @@
-import torch
-from transformers import (
-    PreTrainedTokenizerBase,
-    PreTrainedModel,
-)
-from tools import Calendar
-from prompts import calendar_prompt
 from typing import List
-from data_generation.base_api import APICallPostprocessing
-import dateutil.parser as dparser
 
+import dateutil.parser as dparser
+import torch
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
+from data_generation.base_api import APICallPostprocessing
+from prompts import calendar_prompt
+from tools import Calendar
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
@@ -62,7 +60,10 @@ class CalendarPostprocessing(APICallPostprocessing):
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 outputs[j]["Calendar"] = self.calendar(calendar_string)
-                outputs[j]["Calendar_output"] = [outputs[j]["Calendar_text"][1:], outputs[j]["Calendar"]]
+                outputs[j]["Calendar_output"] = [
+                    outputs[j]["Calendar_text"][1:],
+                    outputs[j]["Calendar"],
+                ]
                 outputs[j]["Calendar_text"] = (
                     outputs[j]["Calendar_text"] + "->" + outputs[j]["Calendar"] + "]"
                 )
@@ -104,7 +105,7 @@ class CalendarPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        for i in range((tokens.shape[1]-1)//N):
+        for i in range((tokens.shape[1] - 1) // N):
             if (N * (i + 1)) > tokens.shape[1]:
                 continue
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
@@ -112,7 +113,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                 :,
                 int(tokens.shape[1] + (-N * (i + 1))) : int(tokens.shape[1] + (-N * i)),
             ]
-            ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
+            # ret_tokens = tokens[:, : (-N * (i + 1) - 1)]
             print(tokens.shape)
             string = tokenizer.decode(input_tokens[0])
             # print(ret_strings)
@@ -138,5 +139,7 @@ class CalendarPostprocessing(APICallPostprocessing):
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
                 if output["Score"] > 0.0:
-                    outputs.append([output["Score"], output["index"]] + output["Calendar_output"])
+                    outputs.append(
+                        [output["Score"], output["index"]] + output["Calendar_output"]
+                    )
         return outputs

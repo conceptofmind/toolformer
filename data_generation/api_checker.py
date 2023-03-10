@@ -1,8 +1,9 @@
-from dataclasses import dataclass
-from transformers import PreTrainedTokenizerBase
-import dateutil.parser as dparser
 import random
 import re
+from dataclasses import dataclass
+
+import dateutil.parser as dparser
+from transformers import PreTrainedTokenizerBase
 
 
 @dataclass
@@ -32,11 +33,11 @@ def check_apis_available(
     available = AvailableAPIs()
     # In case we need a different version, found this here:
     # https://stackoverflow.com/questions/28198370/regex-for-validating-correct-input-for-calculator
-    calc_pattern = re.compile("^(\d+[\+\-\*\/]{1})+\d+$")
+    calc_pattern = re.compile(r"^(\d+[\+\-\*\/]{1})+\d+$")
     if len(tokenized_data) < 4096:
         available.retrieval = False
     try:
-        date = dparser.parse(data["url"], fuzzy=True)
+        dparser.parse(data["url"], fuzzy=True)
     except (ValueError, OverflowError):
         available.calendar = False
     available.calculator = False

@@ -1,14 +1,11 @@
-import torch
-from transformers import (
-    PreTrainedTokenizerBase,
-    PreTrainedModel,
-)
-from tools import langchain_llmchain
-from prompts import llmchain_prompt
 from typing import List
+
+import torch
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
 from data_generation.base_api import APICallPostprocessing
-
-
+from prompts import llmchain_prompt
+from tools import langchain_llmchain
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
@@ -55,9 +52,9 @@ class LLMChainPostprocessing(APICallPostprocessing):
                 )
                 if ")" in outputs[j]["LLMChain"]:
                     outputs[j]["LLMChain"] = outputs[j]["LLMChain"].split(")")[0]
-                if outputs[j]["LLMChain"][0] == "\"":
+                if outputs[j]["LLMChain"][0] == '"':
                     outputs[j]["LLMChain"] = outputs[j]["LLMChain"][1:]
-                if outputs[j]["LLMChain"][-1] == "\"":
+                if outputs[j]["LLMChain"][-1] == '"':
                     outputs[j]["LLMChain"] = outputs[j]["LLMChain"][:-1]
                 outputs[j]["LLMChain_text"] = (
                     "[LLMChain(" + outputs[j]["LLMChain"] + ")"
@@ -67,12 +64,12 @@ class LLMChainPostprocessing(APICallPostprocessing):
                     return_tensors="pt",
                 )["input_ids"].cuda()
                 outputs[j]["LLMChain"] = str(self.llmchain(outputs[j]["LLMChain"]))
-                outputs[j]["LLMChain_output"] = [outputs[j]["LLMChain_text"][1:], outputs[j]["LLMChain"]]
+                outputs[j]["LLMChain_output"] = [
+                    outputs[j]["LLMChain_text"][1:],
+                    outputs[j]["LLMChain"],
+                ]
                 outputs[j]["LLMChain_text"] = (
-                    outputs[j]["LLMChain_text"]
-                    + "->"
-                    + outputs[j]["LLMChain"]
-                    + "]"
+                    outputs[j]["LLMChain_text"] + "->" + outputs[j]["LLMChain"] + "]"
                 )
                 test_inputs = tokenizer(
                     outputs[j]["LLMChain_text"] + "\n",
@@ -113,7 +110,7 @@ class LLMChainPostprocessing(APICallPostprocessing):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
         start_step = 0
-        total_steps = tokens.shape[1]//N
+        total_steps = tokens.shape[1] // N
         for i in range(start_step, total_steps):
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
             labels = tokens[
@@ -145,5 +142,7 @@ class LLMChainPostprocessing(APICallPostprocessing):
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
                 if output["Score"] > 1.0:
-                    outputs.append([output["Score"], output["index"]] + output["LLMChain_output"])
+                    outputs.append(
+                        [output["Score"], output["index"]] + output["LLMChain_output"]
+                    )
         return outputs

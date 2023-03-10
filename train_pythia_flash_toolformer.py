@@ -1,22 +1,22 @@
 # From: https://github.com/kyleliang919/Long-context-transformers
-import torch
-import numpy as np
-import evaluate
-from datasets import load_dataset
-from transformers import GPTNeoXForCausalLM
-from transformers.models.gpt_neox.modeling_gpt_neox import RotaryEmbedding
-from transformers.trainer_utils import get_last_checkpoint
+from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional
-from dataclasses import dataclass, field
+
+import evaluate
+import torch
+from datasets import load_dataset
 from transformers import (
     AutoTokenizer,
+    GPTNeoXForCausalLM,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
 )
+from transformers.models.gpt_neox.modeling_gpt_neox import RotaryEmbedding
+from transformers.trainer_utils import get_last_checkpoint
 
 from flash_attention.flash_attention_gptj_wrapper import FlashAttentionWrapper
 
@@ -38,7 +38,7 @@ class ModelArguments:
 
     max_positions: Optional[int] = field(
         default=8192,
-        metadata={"help": ("The maximun sequence length of the model.")},
+        metadata={"help": ("The maximum sequence length of the model.")},
     )
 
 
@@ -67,7 +67,7 @@ def main():
     max_positions = model_args.max_positions
     tokenizer.model_max_length = max_positions
     for each in model.gpt_neox.layers:
-        original_emb = each.attention.rotary_emb
+        # original_emb = each.attention.rotary_emb
         each.attention.rotary_emb = RotaryEmbedding(
             each.attention.rotary_ndims, max_positions, 10000
         )

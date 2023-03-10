@@ -1,6 +1,6 @@
 import torch
-from torch import nn, einsum
 from einops import rearrange
+from torch import einsum, nn
 
 # helpers
 

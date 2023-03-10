@@ -1,13 +1,13 @@
-import json
 from typing import List
+
 import torch
-from transformers import (
-    PreTrainedTokenizerBase,
-    pipeline,
-    PreTrainedModel,
-    TextGenerationPipeline,
-)
 from torch import nn
+from transformers import (
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+    TextGenerationPipeline,
+    pipeline,
+)
 
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
 N = 64  # SEQ Len
@@ -22,7 +22,7 @@ class APICallPostprocessing:
         minimum_percentage: float = 0.1,
     ):
         """
-        Base API Postprocesing class
+        Base API Postprocessing class
 
         :param start_tokens: token representation for [ or other tokens
         :param end_tokens:  token representation for ] or other tokens

@@ -1,7 +1,7 @@
 # From: https://github.com/kyleliang919/Long-context-transformers
 import torch
-from transformers.models.gptj.modeling_gptj import apply_rotary_pos_emb
 from flash_attn.modules.mha import FlashSelfAttention
+from transformers.models.gptj.modeling_gptj import apply_rotary_pos_emb
 
 
 class FlashAttentionWrapper(torch.nn.Module):
