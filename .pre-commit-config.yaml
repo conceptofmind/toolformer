@@ -1,0 +1,40 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+        - id: check-case-conflict
+        - id: check-json
+        - id: check-symlinks
+        - id: check-yaml
+        - id: destroyed-symlinks
+        - id: end-of-file-fixer
+          exclude: docs/CNAME
+        - id: fix-byte-order-marker
+        - id: fix-encoding-pragma
+          args: [--remove]
+        - id: mixed-line-ending
+          args: [--fix=lf]
+        - id: requirements-txt-fixer
+        - id: trailing-whitespace
+  - repo: https://github.com/psf/black
+    rev: 23.1.0
+    hooks:
+      - id: black
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        name: isort (python)
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.2
+    hooks:
+      - id: codespell
+        args: [--ignore-words, dictionary.txt, --skip, customToolformer/merges.txt, --skip, customToolformer/vocab.json]
+        additional_dependencies:
+          - tomli

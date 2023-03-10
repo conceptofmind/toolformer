@@ -1,14 +1,13 @@
-import torch
-from transformers import (
-    PreTrainedTokenizerBase,
-    PreTrainedModel,
-)
-import nltk
-from nltk import tokenize
-from tools import Retriever
-from prompts import retrieval_prompt
 from typing import List
+
+import nltk
+import torch
+from nltk import tokenize
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
 from data_generation.base_api import APICallPostprocessing
+from prompts import retrieval_prompt
+from tools import Retriever
 
 nltk.download("punkt")
 
@@ -68,7 +67,10 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 outputs[j]["Retrieval"] = self.retriever.retrieval(
                     retrieval_strings, outputs[j]["Retrieval"], 3
                 )
-                outputs[j]["Retrieval_output"] = [outputs[j]["Retrieval_text"][1:], ", ".join(outputs[j]["Retrieval"])]
+                outputs[j]["Retrieval_output"] = [
+                    outputs[j]["Retrieval_text"][1:],
+                    ", ".join(outputs[j]["Retrieval"]),
+                ]
                 outputs[j]["Retrieval_text"] = (
                     outputs[j]["Retrieval_text"]
                     + "->"
@@ -113,9 +115,11 @@ class RetrievalPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        start_step = 2048//N
-        ret_skip = 1024//N  # naively assuming the model should be able to look back if it's less than this.
-        total_steps = tokens.shape[1]//N
+        start_step = 2048 // N
+        ret_skip = (
+            1024 // N
+        )  # naively assuming the model should be able to look back if it's less than this.
+        total_steps = tokens.shape[1] // N
         for i in range(start_step, total_steps):
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
             labels = tokens[
@@ -149,5 +153,7 @@ class RetrievalPostprocessing(APICallPostprocessing):
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
                 if output["Score"] > 1.0:
-                    outputs.append([output["Score"], output["index"]] + output["Retrieval_output"])
+                    outputs.append(
+                        [output["Score"], output["index"]] + output["Retrieval_output"]
+                    )
         return outputs

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "toolformer"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^3.1.1"
+black = "^23.1.0"
+pytest = "^7.2.2"
+
+[tool.isort]
+profile = "black"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

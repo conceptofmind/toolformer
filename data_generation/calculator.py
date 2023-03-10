@@ -1,14 +1,11 @@
-import torch
-from transformers import (
-    PreTrainedTokenizerBase,
-    PreTrainedModel,
-)
-from tools import Calculator
-from prompts import calculator_prompt
 from typing import List
-from data_generation.base_api import APICallPostprocessing
-import dateutil.parser as dparser
 
+import torch
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+
+from data_generation.base_api import APICallPostprocessing
+from prompts import calculator_prompt
+from tools import Calculator
 
 # TODO: Per API?
 MAX_BATCH_SIZE = 1  # My 3090 is weak 😔
@@ -68,7 +65,10 @@ class CalculatorPostprocessing(APICallPostprocessing):
                     continue
                 if outputs[j]["Calculator"] is None:
                     continue
-                outputs[j]["Calculator_output"] = [outputs[j]["Calculator_text"][1:], str(outputs[j]["Calculator"])]
+                outputs[j]["Calculator_output"] = [
+                    outputs[j]["Calculator_text"][1:],
+                    str(outputs[j]["Calculator"]),
+                ]
                 outputs[j]["Calculator_text"] = (
                     outputs[j]["Calculator_text"]
                     + "->"
@@ -113,7 +113,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
     ):
         outputs = list()
         tokens = tokenizer(data["text"], return_tensors="pt")["input_ids"]
-        for i in range((tokens.shape[1]-1)//N):
+        for i in range((tokens.shape[1] - 1) // N):
             if (N * (i + 1)) > tokens.shape[1]:
                 continue
             input_tokens = tokens[:, (-N * (i + 1) - 1) : (-N * (i) - 1)]
@@ -145,5 +145,7 @@ class CalculatorPostprocessing(APICallPostprocessing):
                 output["index"] += int(tokens.shape[1] + (-N * (i + 1)))
                 # filter by score
                 if output["Score"] > 0.0:
-                    outputs.append([output["Score"], output["index"]] + output["Calculator_output"])
+                    outputs.append(
+                        [output["Score"], output["index"]] + output["Calculator_output"]
+                    )
         return outputs
